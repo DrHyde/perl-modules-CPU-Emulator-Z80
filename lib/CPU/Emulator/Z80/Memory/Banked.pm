@@ -1,4 +1,4 @@
-# $Id: Banked.pm,v 1.1 2007/12/30 14:30:45 drhyde Exp $
+# $Id: Banked.pm,v 1.2 2008/01/27 12:44:09 drhyde Exp $
 
 package CPU::Emulator::Z80::Memory::Banked;
 
@@ -11,7 +11,7 @@ $VERSION = '1.0';
 
 local $SIG{__DIE__} = sub {
     die(__PACKAGE__.": $_[0]\n");
-}
+};
 
 =head1 NAME
 
@@ -168,7 +168,7 @@ again at the affected addresses.  It takes a single named parameter
 =cut
 
 sub unbank {
-    my($self, %params)
+    my($self, %params);
     die("No address specified\n") unless(exists($params{address}));
     $self->{overlays} = [
         grep { $_->{address} != $params{address} }
@@ -176,15 +176,27 @@ sub unbank {
     ];
 }
 
-=head2 peek
+=head2 peek, peek8
 
 This method takes a single parameter, an address from 0 to 0xFFFF.
 It returns the value stored at that address, taking account of what
-secondary memory banks are active.
+secondary memory banks are active.  'peek8' is simply another name
+for the same function, the suffix indicating that it returns an 8
+bit (ie one byte) value.
+
+=head2 peek16
+
+As peek and peek8, except it returns a 16 bit value.  The Z80 is
+little-endian, so the least-significant 8 bits will be taken from
+the address specified, the most-significant 8 bits from the next
+address.
 
 =cut
 
-sub peek {
+sub peek { ord(_peek(@_)); }
+sub peek8 { peek(@_); }
+sub peek16 { $_[0]->peek($_[1]) + 256 * $_[0]->peek($_[1] + 1); }
+sub _peek {
     my($self, $addr) = @_;
     die("Address $addr out of range") if($addr< 0 || $addr > 0xFFFF);
     foreach my $bank (@{$self->{overlays}}) {
@@ -231,6 +243,7 @@ sub poke {
                 return 0;
             } else {
                 die("Type ".$bank->{type}." NYI");
+            }
         }
     }
     substr($self->{contents}, $addr, 1) = $value;
@@ -246,10 +259,11 @@ sub _read_file {
     local $/ = undef;
     open(my $fh, $file) || die("Couldn't read $file\n");
     my $contents = <$file>;
-    die("$file is wrong size\n") unless(length($contents) = 0x10000);
+    die("$file is wrong size\n") unless(length($contents) == 0x10000);
     close($fh);
     return $contents;
 }
+
 sub _readROM { _read_file(@_); }
 
 # input: filename, required size
