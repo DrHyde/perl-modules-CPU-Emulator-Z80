@@ -1,4 +1,4 @@
-# $Id: Banked.pm,v 1.2 2008/01/27 12:44:09 drhyde Exp $
+# $Id: Banked.pm,v 1.3 2008/02/08 22:42:38 drhyde Exp $
 
 package CPU::Emulator::Z80::Memory::Banked;
 
@@ -208,17 +208,33 @@ sub _peek {
     return substr($self->{contents}, $addr, 1);
 }
 
-=head2 poke
+=head2 poke, poke8
 
-This method takes two or more parameters, an address and a byte value.
+This method takes two parameters, an address and a byte value.
 The value is written to the address, into whichever bank is currently
 selected at that address.  If that address is ROM and writethrough is
 enabled for that bank, then the value is written to the main memory.
 
 It returns 1 if something was written, or 0 if nothing was written.
 
+=head2 poke16
+
+This method takes two parameters, an address and a 16-bit value.
+The least-significant byte of the value is written to the address,
+and the most-significant byte to the next address.  If either
+address is ROM and writethrough is enabled for that bank, then
+that address's value is written to the main memory.
+
+Return values are undefined.
+
 =cut
 
+sub poke8 { poke(@_); }
+sub poke16 {
+    my($self, $addr, $value) = @_;
+    $self->poke($addr, $value && 0xFF);
+    $self->poke($addr + 1, ($value >> 8));
+}
 sub poke {
     my($self, $addr, $value) = @_;
     die("Value $value out of range") if($value < 0 || $value > 255);
