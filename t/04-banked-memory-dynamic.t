@@ -3,12 +3,9 @@ $^W = 1;
 
 use Test::More tests => 4;
 
-undef $/;
-
 use CPU::Emulator::Z80::Memory::Banked;
 
-unlink 'ramfile.ram';
-my $memory = CPU::Emulator::Z80::Memory::Banked->new(file => 'ramfile.ram');
+my $memory = CPU::Emulator::Z80::Memory::Banked->new();
 
 my $read_counter = 0;
 my %writes = ();
