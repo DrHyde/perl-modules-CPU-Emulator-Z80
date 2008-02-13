@@ -1,4 +1,4 @@
-# $Id: Banked.pm,v 1.6 2008/02/13 17:57:42 drhyde Exp $
+# $Id: Banked.pm,v 1.7 2008/02/13 19:42:21 drhyde Exp $
 
 package CPU::Emulator::Z80::Memory::Banked;
 
@@ -49,13 +49,24 @@ gets run.
 =head2 new
 
 The constructor returns an object representing a flat 64K memory
-space addressable by byte.  It takes one optional named parameter
-'file' which, if provided, will provide a disc-based backup of the
+space addressable by byte.  It takes two optional named parameters:
+
+=over
+
+=item file
+
+if provided, will provide a disc-based backup of the
 RAM represented.  This file will be read when the object is created
 (if it exists) and written whenever anything is altered.  If no
 file exists or no filename is provided, then memory is initialised
 to all zeroes.  If the file exists it must be writeable and of the
 correct size.
+
+=item endianness
+
+can be either 'LITTLE' or 'BIG', and defaults to 'LITTLE'.
+
+=back
 
 =cut
 
@@ -73,7 +84,8 @@ sub new {
         {
             contents => $bytes,
             overlays => [],
-            ($params{file} ? (file => $params{file}) : ())
+            ($params{file} ? (file => $params{file}) : ()),
+            endianness => $params{endianness} || 'LITTLE'
         },
         __PACKAGE__
     );
@@ -195,16 +207,23 @@ bit (ie one byte) value.
 
 =head2 peek16
 
-As peek and peek8, except it returns a 16 bit value.  The Z80 is
-little-endian, so the least-significant 8 bits will be taken from
-the address specified, the most-significant 8 bits from the next
-address.
+As peek and peek8, except it returns a 16 bit value.  This is where
+endianness matters.
 
 =cut
 
 sub peek { ord(_peek(@_)); }
 sub peek8 { peek(@_); }
-sub peek16 { $_[0]->peek($_[1]) + 256 * $_[0]->peek($_[1] + 1); }
+sub peek16 {
+    my($self, $address) = @_;
+    # assume little-endian
+    my $r = $self->peek($address) + 256 * $self->peek($address + 1);
+    # swap bytes if necessary
+    if($self->{endianness} eq 'BIG') {
+        $r = (($r & 0xFF) << 8) + int($r / 256);
+    }
+    return $r;
+}
 sub _peek {
     my($self, $addr) = @_;
     die("Address $addr out of range") if($addr< 0 || $addr > 0xFFFF);
@@ -229,9 +248,10 @@ It returns 1 if something was written, or 0 if nothing was written.
 =head2 poke16
 
 This method takes two parameters, an address and a 16-bit value.
-The least-significant byte of the value is written to the address,
-and the most-significant byte to the next address.  If either
-address is ROM and writethrough is enabled for that bank, then
+The value is written to memory as two bytes at the address specified
+and the following one.  This is where endianness matters.
+If either
+byte is ROM and writethrough is enabled for that bank, then
 that address's value is written to the main memory.
 
 Return values are undefined.
@@ -241,6 +261,11 @@ Return values are undefined.
 sub poke8 { poke(@_); }
 sub poke16 {
     my($self, $addr, $value) = @_;
+    # if BIGendian, swap bytes, ...
+    if($self->{endianness} eq 'BIG') {
+        $value = (($value & 0xFF) << 8) + int($value / 256);
+    }
+    # write in little-endian order
     $self->poke($addr, $value & 0xFF);
     $self->poke($addr + 1, ($value >> 8));
 }
