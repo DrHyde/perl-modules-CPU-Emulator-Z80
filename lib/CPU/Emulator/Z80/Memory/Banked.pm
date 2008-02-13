@@ -1,4 +1,4 @@
-# $Id: Banked.pm,v 1.4 2008/02/13 15:25:20 drhyde Exp $
+# $Id: Banked.pm,v 1.5 2008/02/13 16:05:37 drhyde Exp $
 
 package CPU::Emulator::Z80::Memory::Banked;
 
@@ -63,7 +63,11 @@ sub new {
     my($class, %params) = @_;
     my $bytes = chr(0) x 0x10000;
     if(exists($params{file})) {
-        $bytes = _readRAM($params{file}, 0x10000);
+        if(-e $params{file}) {
+            $bytes = _readRAM($params{file}, 0x10000);
+        } else {
+            _writeRAM($params{file}, $bytes)
+        }
     }
     return bless(
         {
@@ -274,8 +278,8 @@ sub _read_file {
     my($file, $size) = @_;
     local $/ = undef;
     open(my $fh, $file) || die("Couldn't read $file\n");
-    my $contents = <$file>;
-    die("$file is wrong size\n") unless(length($contents) == 0x10000);
+    my $contents = <$fh>;
+    die("$file is wrong size\n") unless(length($contents) == $size);
     close($fh);
     return $contents;
 }
