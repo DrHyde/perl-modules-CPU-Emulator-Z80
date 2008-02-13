@@ -1,4 +1,4 @@
-# $Id: Banked.pm,v 1.5 2008/02/13 16:05:37 drhyde Exp $
+# $Id: Banked.pm,v 1.6 2008/02/13 17:57:42 drhyde Exp $
 
 package CPU::Emulator::Z80::Memory::Banked;
 
@@ -133,7 +133,7 @@ sub bank {
     my($self, %params) = @_;
     my($address, $size, $type) = @params{qw(address size type)};
     foreach (qw(address size type)) {
-        die("No $_ specified\n")
+        die("bank: No $_ specified\n")
             if(!exists($params{$_}));
     }
 
@@ -149,8 +149,13 @@ sub bank {
     }
     foreach my $bank (@{$self->{overlays}}) {
         if(
-            $bank->{address} >= $address &&
-            $bank->{address} < $address + $size
+            (      # does an older bank start in the middle of this one?
+                $bank->{address} >= $address &&
+                $bank->{address} < $address + $size
+            ) || ( # does this start in the middle of an older bank?
+                $address >=  $bank->{address} &&
+                $address < $bank->{address} + $bank->{size}
+            )
         ) { $self->unbank(address => $bank->{address}) }
     }
     push @{$self->{overlays}}, {
@@ -159,7 +164,7 @@ sub bank {
         type     => $type,
         contents => $contents,
         (exists($params{file}) ? (file => $params{file}) : ()),
-        (exists($params{writethrough}) ? (file => $params{writethrough}) : ())
+        (exists($params{writethrough}) ? (writethrough => $params{writethrough}) : ())
     };
 }
 
@@ -172,8 +177,8 @@ again at the affected addresses.  It takes a single named parameter
 =cut
 
 sub unbank {
-    my($self, %params);
-    die("No address specified\n") unless(exists($params{address}));
+    my($self, %params) = @_;
+    die("unbank: No address specified\n") unless(exists($params{address}));
     $self->{overlays} = [
         grep { $_->{address} != $params{address} }
         @{$self->{overlays}}
