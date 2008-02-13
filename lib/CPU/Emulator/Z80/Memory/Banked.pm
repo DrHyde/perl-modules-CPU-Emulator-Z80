@@ -1,4 +1,4 @@
-# $Id: Banked.pm,v 1.3 2008/02/08 22:42:38 drhyde Exp $
+# $Id: Banked.pm,v 1.4 2008/02/13 15:25:20 drhyde Exp $
 
 package CPU::Emulator::Z80::Memory::Banked;
 
@@ -232,7 +232,7 @@ Return values are undefined.
 sub poke8 { poke(@_); }
 sub poke16 {
     my($self, $addr, $value) = @_;
-    $self->poke($addr, $value && 0xFF);
+    $self->poke($addr, $value & 0xFF);
     $self->poke($addr + 1, ($value >> 8));
 }
 sub poke {

@@ -7,3 +7,4 @@ lib/CPU/Emulator/Z80/Memory/Banked.pm
 t/00-banked-memory-ranges.t
 bin/z80masm
 TODO
+t/01-peek16-poke16.t
