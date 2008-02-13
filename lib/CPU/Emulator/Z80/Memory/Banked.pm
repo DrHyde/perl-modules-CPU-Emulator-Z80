@@ -1,4 +1,4 @@
-# $Id: Banked.pm,v 1.7 2008/02/13 19:42:21 drhyde Exp $
+# $Id: Banked.pm,v 1.8 2008/02/13 22:12:10 drhyde Exp $
 
 package CPU::Emulator::Z80::Memory::Banked;
 
@@ -64,7 +64,8 @@ correct size.
 
 =item endianness
 
-can be either 'LITTLE' or 'BIG', and defaults to 'LITTLE'.
+defaults to LITTLE, can be set to BIG.  This matters for the peek16
+and poke16 methods.
 
 =back
 
@@ -137,6 +138,14 @@ This is only meaningful for ROM.  If set, then any writes to the
 addresses affected will be directed through to the underlying main
 RAM.  Otherwise writes will be ignored.
 
+=item function_read and function_write
+
+Coderefs which will be called when 'dynamic' memory is read/written.
+Both are compulsory for 'dynamic' memory.  They are called with a
+reference to the memory object, the address being accessed, and
+(for function_write) the byte to be written.  function_read should
+return a byte.  function_write's return value is ignored.
+
 =back
 
 =cut
@@ -149,7 +158,7 @@ sub bank {
             if(!exists($params{$_}));
     }
 
-    my $contents;
+    my $contents ='';
     if($type eq 'ROM') {
         die("For ROM banks you need to specify a file\n")
             unless(exists($params{file}));
@@ -158,6 +167,9 @@ sub bank {
         $contents = (exists($params{file}))
             ? _readRAM($params{file}, $size)
             : chr(0) x $size;
+    } elsif($type eq 'dynamic') {
+        die("For dynamic banks you need to specify function_read and function_write\n")
+            unless(exists($params{function_read}) && exists($params{function_write}));
     }
     foreach my $bank (@{$self->{overlays}}) {
         if(
@@ -174,9 +186,11 @@ sub bank {
         address  => $address,
         size     => $size,
         type     => $type,
-        contents => $contents,
+        (length($contents) ? (contents => $contents) : ()),
         (exists($params{file}) ? (file => $params{file}) : ()),
-        (exists($params{writethrough}) ? (writethrough => $params{writethrough}) : ())
+        (exists($params{writethrough}) ? (writethrough => $params{writethrough}) : ()),
+        (exists($params{function_read}) ? (function_read => $params{function_read}) : ()),
+        (exists($params{function_write}) ? (function_write => $params{function_write}) : ())
     };
 }
 
@@ -231,7 +245,13 @@ sub _peek {
         if(
             $bank->{address} <= $addr &&
             $bank->{address} + $bank->{size} > $addr
-        ) { return substr($bank->{contents}, $addr - $bank->{address}, 1) }
+        ) {
+            if($bank->{type} eq 'dynamic') {
+                return chr($bank->{function_read}->($self, $addr));
+            } else {
+                return substr($bank->{contents}, $addr - $bank->{address}, 1);
+            }
+        }
     }
     return substr($self->{contents}, $addr, 1);
 }
@@ -291,6 +311,8 @@ sub poke {
                 return 1;
             } elsif($bank->{type} eq 'ROM') {
                 return 0;
+            } elsif($bank->{type} eq 'dynamic') {
+                return $bank->{function_write}->($self, $addr, ord($value));
             } else {
                 die("Type ".$bank->{type}." NYI");
             }

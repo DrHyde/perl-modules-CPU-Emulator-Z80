@@ -10,3 +10,4 @@ TODO
 t/01-banked-memory-peek16-poke16.t
 t/02-banked-memory-main-RAM-is-file.t
 t/03-banked-memory-ROM.t
+t/04-banked-memory-dynamic.t
