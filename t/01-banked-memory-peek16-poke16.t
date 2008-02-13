@@ -11,5 +11,3 @@ ok($memory->poke16(0x1000, 256) && $memory->peek16(0x1000) == 256,
     "Can peek and poke 16 bit values");
 ok($memory->peek(0x1000) == 0 && $memory->peek(0x1001) == 1,
     "I can has correct endianness!");
-
-print $memory->peek16(0x1000)."\n";
