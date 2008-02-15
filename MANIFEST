@@ -9,3 +9,4 @@ my-first-program
 lib/CPU/Emulator/Z80/Register.pm
 lib/CPU/Emulator/Z80/Register16.pm
 lib/CPU/Emulator/Z80/Register8.pm
+NOTES
