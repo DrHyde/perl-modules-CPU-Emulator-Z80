@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.2 2008/02/14 18:25:59 drhyde Exp $
+# $Id: Z80.pm,v 1.3 2008/02/15 00:06:40 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -15,10 +15,13 @@ local $SIG{__DIE__} = sub {
 
 use Scalar::Util qw(blessed);
 use CPU::Emulator::Memory::Banked;
+use CPU::Emulator::Z80::Register8;
+use CPU::Emulator::Z80::Register16;
 
-use constant REGISTERS16 => [qw(PC SP IX IY HL)];
-use constant REGISTERS8  => [qw(A B C D E)];
-use constant REGISTERS   => [@{REGISTERS16}, @{REGISTERS8}];
+my @REGISTERS16 = qw(PC SP IX IY HL);          # 16 bit registers
+my @REGISTERS8  = qw(A B C D E F R);           # 8 bit registers
+my @ALTREGISTERS = qw(A B C D E F HL);         # those which have alt.s
+my @REGISTERS   = (@REGISTERS16, @REGISTERS8); # all registers
 
 =head1 NAME
 
@@ -26,22 +29,24 @@ CPU::Emulator::Z80 - a Z80 emulator
 
 =head1 SYNOPSIS
 
-    # create a CPU with 64K of RAM
+    # create a CPU with 64K of zeroes in RAM
     my $cpu = CPU::Emulator::Z80->new();
 
-    # add an OS ROM
+    # set a breakpoint
     $cpu->memory()->bank(
-        address => 0,
-        size    => 0x4000,
-        type    => 'ROM',
-        file    => 'OS.rom'
+        address => 0x0008, # RST 1
+        size    => 1,
+        type    => 'dynamic',
+        function_read  => sub { die("Breakpoint reached"); },
+        function_write => sub { }
     );
 
-    # HALT instruction
-    $cpu->memory()->poke(0x4000, 0x76);
+    $cpu->memory()->poke(0x0000, 0xC3);     # JP 0xC000
+    $cpu->memory()->poke16(0x0001, 0xC000);
 
-    # run until we hit a HALT
-    $cpu->run();
+    # run until we hit a breakpoint ie RST 1
+    eval { $cpu->run(); }
+    print Dumper($cpu->dump_registers());
 
 =head1 DESCRIPTION
 
@@ -68,8 +73,16 @@ specified at all, then a CPU::Emulator::Memory::Banked is created with
 
 =item init_PC, init_A, init_B ...
 
-For each of A B C D E HL IX IY PC SP, an integer, the starting value for
-that register, defaulting to 0.
+For each of A B C D E F R HL IX IY PC SP, an integer, the starting
+value for that register, defaulting to 0.
+
+=item init_A', init_B', ...
+
+For each of A B C D E F HL, an integer for the starting value for that
+register in the alternate set, defaulting to 0.  Note that in a
+somewhat unperlish fashion, the members of the alternate register set
+are referred to consistently as X' (that is, the register name with a
+following apostrophe).
 
 =back
 
@@ -80,7 +93,7 @@ sub new {
     if(exists($args{memory})) {
         if(blessed($args{memory})) {
             die("memory must be a CPU::Emulator::Memory")
-                unless($args{memory}->isa('CPU::Emulator::Memory');
+                unless($args{memory}->isa('CPU::Emulator::Memory'));
         } elsif(!ref($args{memory})) {
             $args{memory} = CPU::Emulator::Memory::Banked->new(
                 bytes => $args{memory},
@@ -93,7 +106,7 @@ sub new {
         $args{memory} = CPU::Emulator::Memory::Banked->new();
     }
 
-    foreach my $register (@{REGISTERS}) {
+    foreach my $register (@REGISTERS, map { "$_'" } @ALTREGISTERS) {
         $args{"init_$register"} = 0
             if(!exists($args{"init_$register"}));
     }
@@ -104,24 +117,31 @@ sub new {
         hw_registers => {
             (map {
                 $_ => CPU::Emulator::Z80::Register8->new($args{"init_$_"})
-            } REGISTERS8),
+            } @REGISTERS8),
             (map {
                 $_ => CPU::Emulator::Z80::Register16->new($args{"init_$_"})
-            } REGISTERS16),
+            } @REGISTERS16),
         }
     }, $class;
 
+    foreach my $register (@ALTREGISTERS) {
+        $self->{hw_registers}->{$register."'"} =
+            blessed($self->{hw_registers}->{$register})->new($args{"init_$register'"});
+    }
+
     $self->{derived_registers} = {
+        AF   => $self->_derive_register16(qw(A F)),
         BC   => $self->_derive_register16(qw(B C)),
         DE   => $self->_derive_register16(qw(D E)),
-        H    => $self->_derive_register8(qw(HL high));
-        L    => $self->_derive_register8(qw(HL low));
-        HIX  => $self->_derive_register8(qw(IX high));
-        LIX  => $self->_derive_register8(qw(IX low));
-        HIY  => $self->_derive_register8(qw(IY high));
-        LIY  => $self->_derive_register8(qw(IY low));
+        H    => $self->_derive_register8(qw(HL high)),
+        L    => $self->_derive_register8(qw(HL low)),
+        HIX  => $self->_derive_register8(qw(IX high)),
+        LIX  => $self->_derive_register8(qw(IX low)),
+        HIY  => $self->_derive_register8(qw(IY high)),
+        LIY  => $self->_derive_register8(qw(IY low)),
     };
     $self->{registers} = { %{$self->{hw_registers}}, %{$self->{derived_registers}} };
+    return $self;
 }
 
 # create a 16-bit register-pair from two real 8-bit registers
@@ -133,7 +153,7 @@ sub _derive_register16 {
                                 $self->register($low)->get()
                },
         set => sub {
-                   my(undef, $value) = @_;
+                   my $value = shift;
                    $self->register($high)->set($value >>8);
                    $self->register($low)->set($value & 0xFF);
                }
@@ -150,7 +170,7 @@ sub _derive_register8 {
                        : $r & 0xFF
                },
         set => sub {
-                   my(undef, $value) = @_;
+                   my $value = shift;
                    $self->register($pair)->set(
                        ($half eq 'high')
                            ? ($self->register($pair)->get() & 0x00FF) |
@@ -165,6 +185,40 @@ sub _derive_register8 {
 
 Return a reference to the object that represent's the system's memory.
 
+=cut
+
+sub memory {
+    my $self = shift;
+    return $self->{memory};
+}
+
+=head2 register
+
+Return the object representing a specified register.  This can be any
+of the real registers (eg D or D') or a derived register (eg DE or L).
+
+=cut
+
+sub register {
+    my $self = shift;
+    return $self->{registers}->{shift()};
+}
+
+=head2 dump_registers
+
+Return a hashref of all the real registers and their values.
+
+=cut
+
+sub dump_registers {
+    my $self = shift;
+    return {
+        map {
+            $_ => sprintf('0x%X', $self->{hw_registers}->{$_}->get())
+        } keys %{$self->{hw_registers}}
+    }
+}
+
 =head2 run
 
 Start the CPU running from whatever the Program Counter (PC) is set to.
@@ -173,6 +227,76 @@ to run for a certain number of instructions by passing a number to the
 method.  Note that when this method returns, the PC is set to the address
 of the next instruction.
 
+=cut
+
+{ my $instrs_to_execute;
+sub run {
+    my $self = shift;
+    if(@_) { $instrs_to_execute = shift(); }
+     else { $instrs_to_execute = -1; }
+
+    while($instrs_to_execute) {
+        $instrs_to_execute--;
+        $self->_execute($self->_fetch());
+        delete $self->{index_prefix};
+    }
+}
+}
+
+use constant INSTR_LENGTHS => {
+    (map { $_ => 'UNDEFINED' } (0 .. 255)),
+    (map { $_ => 'VARIABLE'  } (0xDD, 0xFD)),
+    0x00 => 1, # NOP
+    0x76 => 1, # HALT
+    0xC3 => 3, # JP
+};
+use constant INSTR_DISPATCH => {
+    0x00 => sub { },
+    0x76 => \&_HALT,
+    0xC3 => \&_JP_unconditional,
+};
+
+# fetch all the bytes for an instruction and return them
+sub _fetch {
+    my $self = shift;
+    my @bytes = ();
+    my $pc = $self->register('PC')->get();
+    
+    # R register increments weirdly ...
+    my $r = $self->register('R')->get();
+    $self->register('R')->set(
+        ($r & 0b10000000) | (($r + 1) & 0b01111111)
+    );
+    push @bytes, $self->memory()->peek($pc);
+
+    # IX/IY prefix
+    if($bytes[0] == 0xFD || $bytes[0] == 0xDD) {
+        $self->{index_prefix} = $bytes[0];
+        $self->register('PC')->set($pc + 1);
+        return (@bytes, $self->_fetch());
+    }
+
+    die(sprintf("_fetch: Unknown instruction 0x%02X at 0x%04X\n", $bytes[0], $pc))
+        if(INSTR_LENGTHS()->{$bytes[0]} eq 'UNDEFINED');
+
+    push @bytes, map { $self->memory()->peek($pc + $_) } (1 .. INSTR_LENGTHS()->{$bytes[0]} - 1);
+    $self->register('PC')->set($pc + INSTR_LENGTHS()->{$bytes[0]});
+    return @bytes;
+}
+
+# execute an instruction. NB, the PC already points at the next instr
+sub _execute {
+    my($self, $instr) = (shift(), shift());
+    printf("_execute: 0x%02X (PC=0x%04X)\n", $instr, $self->register('PC')->get());
+    INSTR_DISPATCH()->{$instr}->($self, @_);
+}
+
+sub _HALT { while(sleep(10)) {} }
+sub _JP_unconditional {
+    my $self = shift;
+    $self->register('PC')->set(shift() + 256 * shift());
+}
+
 =head1 PROGRAMMING THE Z80
 
 It is not the place of this documentation to teach you how to program a
@@ -180,6 +304,63 @@ Z80.  I recommend "Programming the Z80" by Rodnay Zaks.  This excellent
 book is unfortunately out of print, but may be available through
 abebooks.com
 L<http://www.abebooks.com/servlet/SearchResults?an=zaks&tn=programming+the+z80>.
+
+=head1 INTERNAL ORGANISATION
+
+A real Z80 has the following registers:
+
+=over
+
+=item A the eight bit accumulator
+
+=item B eight bit general purpose register, often used as a counter
+
+=item C eight bit general purpose register
+
+=item D eight bit general purpose register
+
+=item E eight bit general purpose register
+
+=item F eight bit flags register
+
+=item HL sixteen bit accumulator
+
+=item IX sixteen bit index register
+
+=item IY sixteen bit index register
+
+=item SP sixteen bit stack pointer
+
+=item PC sixteen bit program counter
+
+=back
+
+plus an "alternate register set":
+
+=over
+
+=item A' alternate eight bit accumulator
+
+=item B' C' D' E' alternate eight bit general purpose registers
+
+=item F' alternate flags register
+
+=item HL' alternate sixteen bit accumulator
+
+=back
+
+The internals of the CPU object reflect that.  There are also
+several "register pairs" - AF, BC and DE which are effectively
+sixteen bit registers made up by combining the appropriate
+registers.  And the HL register can conversely be de-composed
+into seperate eight bit H and L registers.  These combinations
+and de-compositions are handled in such a way that the
+appropriate registers and register pairs can be addressed by name
+with the underlying "real" registers being twiddled as necessary.
+
+The IX and IY registers can also be split into HIX, LIX, HIY and LIY
+registers - that is, the "undocumented" instructions are
+implemented.
 
 =head1 BUGS/WARNINGS/LIMITATIONS
 

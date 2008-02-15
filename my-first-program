@@ -1,0 +1,19 @@
+use CPU::Emulator::Z80;
+use Data::Dumper;
+
+my $cpu = CPU::Emulator::Z80->new();
+$cpu->memory()->bank(
+    address => 0x0008, # RST 1
+    size    => 1,
+    type    => 'dynamic',
+    function_read  => sub { die("Breakpoint reached"); },
+    function_write => sub { }
+);
+$cpu->memory()->poke(0x0000, 0xC3);     # JP 0xC000
+$cpu->memory()->poke16(0x0001, 0xC000);
+$cpu->memory()->poke(0xC123, 0xC3);     # JP 0x0008
+$cpu->memory()->poke16(0xC124, 0x0008);
+eval { $cpu->run(); };
+print $@;
+print Dumper($cpu->dump_registers());
+
