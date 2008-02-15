@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.3 2008/02/15 00:06:40 drhyde Exp $
+# $Id: Z80.pm,v 1.4 2008/02/15 18:06:39 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -34,15 +34,15 @@ CPU::Emulator::Z80 - a Z80 emulator
 
     # set a breakpoint
     $cpu->memory()->bank(
-        address => 0x0008, # RST 1
+        address => 8, # RST 1
         size    => 1,
         type    => 'dynamic',
         function_read  => sub { die("Breakpoint reached"); },
         function_write => sub { }
     );
 
-    $cpu->memory()->poke(0x0000, 0xC3);     # JP 0xC000
-    $cpu->memory()->poke16(0x0001, 0xC000);
+    $cpu->memory()->poke(0, 0xC3);     # JP 0xC000
+    $cpu->memory()->poke16(1, 0xC000);
 
     # run until we hit a breakpoint ie RST 1
     eval { $cpu->run(); }
@@ -173,7 +173,7 @@ sub _derive_register8 {
                    my $value = shift;
                    $self->register($pair)->set(
                        ($half eq 'high')
-                           ? ($self->register($pair)->get() & 0x00FF) |
+                           ? ($self->register($pair)->get() & 0xFF) |
                              ($value << 8)
                            : ($self->register($pair)->get() & 0xFF00) | $value
                    );
@@ -204,19 +204,63 @@ sub register {
     return $self->{registers}->{shift()};
 }
 
-=head2 dump_registers
+=head2 status
 
-Return a hashref of all the real registers and their values.
+Return a scalar representing the entire state of the CPU or, if passed
+a scalar, attempt to initialise the CPU to the status it represents.
 
 =cut
 
-sub dump_registers {
+sub status {
+    my $self = shift;
+    if(@_) { $self->_status_load(@_); }
+    return
+        join('', map {
+            chr($self->register($_)->get())
+        } qw(A B C D E F A' B' C' D' E' F' R))
+       .join('', map {
+            chr($self->register($_)->get() >> 8),
+            chr($self->register($_)->get() & 0xFF),
+        } qw(SP PC IX IY HL HL'));
+}
+sub _status_load {
+    my($self, $status) = @_;
+    my @regs = split(//, $status);
+    $self->register($_)->set(ord(shift(@regs)))
+        foreach(qw(A B C D E F A' B' C' D' E' F' R));
+    $self->register($_)->set(256 * ord(shift(@regs)) + ord(shift(@regs)))
+        foreach(qw(SP PC IX IY HL HL'));
+}
+
+=head2 registers
+
+Return a hashref of all the real registers and their values.
+
+=head2 print_registers
+
+A convenient method for printing out all the registers in a sane format.
+
+=cut
+
+sub registers {
     my $self = shift;
     return {
         map {
-            $_ => sprintf('0x%X', $self->{hw_registers}->{$_}->get())
+            $_ => sprintf('0x%X', $self->register($_)->get())
         } keys %{$self->{hw_registers}}
     }
+}
+
+sub print_registers {
+    my $self = shift;
+    printf("
+             SZ5H3PNC                             SZ5H3PNC
+A:  0x%02X F:  %08b HL:  0x%04X    A': 0x%02X F': %08b HL': 0x%04X
+B:  0x%02X C:  0x%02X                    B': 0x%02X C': 0x%02X
+D:  0x%02X E:  0x%02X                    D': 0x%02X E': 0x%02X
+
+R:  0x%02X IX: 0x%04X IY: 0x%04X SP: 0x%04X PC: 0x%04X
+", map { $self->register($_)->get(); } qw(A F HL A' F' HL' B C B' C' D E D' E' R IX IY SP PC));
 }
 
 =head2 run
@@ -246,12 +290,12 @@ sub run {
 use constant INSTR_LENGTHS => {
     (map { $_ => 'UNDEFINED' } (0 .. 255)),
     (map { $_ => 'VARIABLE'  } (0xDD, 0xFD)),
-    0x00 => 1, # NOP
+    0    => 1, # NOP
     0x76 => 1, # HALT
     0xC3 => 3, # JP
 };
 use constant INSTR_DISPATCH => {
-    0x00 => sub { },
+    0    => sub { },
     0x76 => \&_HALT,
     0xC3 => \&_JP_unconditional,
 };
@@ -304,63 +348,6 @@ Z80.  I recommend "Programming the Z80" by Rodnay Zaks.  This excellent
 book is unfortunately out of print, but may be available through
 abebooks.com
 L<http://www.abebooks.com/servlet/SearchResults?an=zaks&tn=programming+the+z80>.
-
-=head1 INTERNAL ORGANISATION
-
-A real Z80 has the following registers:
-
-=over
-
-=item A the eight bit accumulator
-
-=item B eight bit general purpose register, often used as a counter
-
-=item C eight bit general purpose register
-
-=item D eight bit general purpose register
-
-=item E eight bit general purpose register
-
-=item F eight bit flags register
-
-=item HL sixteen bit accumulator
-
-=item IX sixteen bit index register
-
-=item IY sixteen bit index register
-
-=item SP sixteen bit stack pointer
-
-=item PC sixteen bit program counter
-
-=back
-
-plus an "alternate register set":
-
-=over
-
-=item A' alternate eight bit accumulator
-
-=item B' C' D' E' alternate eight bit general purpose registers
-
-=item F' alternate flags register
-
-=item HL' alternate sixteen bit accumulator
-
-=back
-
-The internals of the CPU object reflect that.  There are also
-several "register pairs" - AF, BC and DE which are effectively
-sixteen bit registers made up by combining the appropriate
-registers.  And the HL register can conversely be de-composed
-into seperate eight bit H and L registers.  These combinations
-and de-compositions are handled in such a way that the
-appropriate registers and register pairs can be addressed by name
-with the underlying "real" registers being twiddled as necessary.
-
-The IX and IY registers can also be split into HIX, LIX, HIY and LIY
-registers - that is, the "undocumented" instructions are
-implemented.
 
 =head1 BUGS/WARNINGS/LIMITATIONS
 

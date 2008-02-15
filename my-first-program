@@ -15,5 +15,4 @@ $cpu->memory()->poke(0xC123, 0xC3);     # JP 0x0008
 $cpu->memory()->poke16(0xC124, 0x0008);
 eval { $cpu->run(); };
 print $@;
-print Dumper($cpu->dump_registers());
-
+$cpu->print_registers();
