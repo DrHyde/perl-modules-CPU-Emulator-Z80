@@ -1,4 +1,4 @@
-# $Id: ALU.pm,v 1.1 2008/02/16 13:05:48 drhyde Exp $
+# $Id: ALU.pm,v 1.2 2008/02/16 15:00:06 drhyde Exp $
 
 package CPU::Emulator::Z80::ALU;
 
@@ -20,16 +20,19 @@ provides both 8- and 16-bit versions of all its methods.
 All methods are available in 8- and 16-bit versions by appending
 the appropriate number:
 
-=head2 add
+=head2 add8/add16
 
-Takes two 8-bit values and returns their 8-bit sum.
+Takes two 8/16-bit values and returns their 8/16-bit sum.
 
 =cut
 
-sub add {
+sub add8 {
     my($self, $op1, $op2) = @_;
-    my $lownybble = ($op1 & 0b1111) + ($op2 & 0b1111);
-    $self->flagHset($lownybble & 0b10000); # half-carry
+    my $lownybble = ($op1 & 0x0F) + ($op2 & 0x0F);
+    $self->flagHset($lownybble & 0x10); # half-carry
+    my $result = $lownybble + ($op1 & 0xF0) + ($op2 & 0xF0);
+    $self->flagCset($result & 0x100);
+    return $result & 0xFF
 }
 
 =head1 BUGS/WARNINGS/LIMITATIONS
