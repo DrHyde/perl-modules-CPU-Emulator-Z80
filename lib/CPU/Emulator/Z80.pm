@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.4 2008/02/15 18:06:39 drhyde Exp $
+# $Id: Z80.pm,v 1.5 2008/02/16 13:05:47 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -16,7 +16,9 @@ local $SIG{__DIE__} = sub {
 use Scalar::Util qw(blessed);
 use CPU::Emulator::Memory::Banked;
 use CPU::Emulator::Z80::Register8;
+use CPU::Emulator::Z80::Register8F;
 use CPU::Emulator::Z80::Register16;
+use CPU::Emulator::Z80::ALU; # import add/subtract methods
 
 my @REGISTERS16 = qw(PC SP IX IY HL);          # 16 bit registers
 my @REGISTERS8  = qw(A B C D E F R);           # 8 bit registers
@@ -128,6 +130,9 @@ sub new {
         $self->{hw_registers}->{$register."'"} =
             blessed($self->{hw_registers}->{$register})->new($args{"init_$register'"});
     }
+
+    bless $self->{hw_registers}->{$_}, 'CPU::Emulator::Z80::Register8F'
+        foreach(qw(F F'));
 
     $self->{derived_registers} = {
         AF   => $self->_derive_register16(qw(A F)),
