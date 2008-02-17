@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.5 2008/02/16 13:05:47 drhyde Exp $
+# $Id: Z80.pm,v 1.6 2008/02/17 16:37:15 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -294,13 +294,67 @@ sub run {
 
 use constant INSTR_LENGTHS => {
     (map { $_ => 'UNDEFINED' } (0 .. 255)),
-    (map { $_ => 'VARIABLE'  } (0xDD, 0xFD)),
+    # length tables for prefixes ...
+    0xCB, {
+            (map { $_ => 'UNDEFINED' } (0 .. 255)),
+          },
+    0xED, {
+            (map { $_ => 'UNDEFINED' } (0 .. 255)),
+          },
+    0xDD, {
+            (map { $_ => 'UNDEFINED' } (0 .. 255)),
+          },
+    0xFD, {
+            (map { $_ => 'UNDEFINED' } (0 .. 255)),
+          },
+    # un-prefixed instructions
     0    => 1, # NOP
+    0x01 => 3, # LD BC, nn
+    0x02 => 1, # LD (BC), A
+    0x03 => 1, # INC BC
+    0x04 => 1, # INC B
+    0x05 => 1, # DEC B
+    0x06 => 2, # LD B, n
+    0x07 => 1, # RLCA
+    0x08 => 1, # EX AF, AF'
+    0x09 => 1, # ADD HL, BC
+    0x0A => 1, # LD A, (BC)
+    0x0B => 1, # DEC BC
+    0x0C => 1, # INC C
+    0x0D => 1, # DEC C
+    0x0E => 2, # LD C, n
+    0x0F => 1, # RRCA
     0x76 => 1, # HALT
     0xC3 => 3, # JP
 };
+
+# these are all passed a list of parameter bytes
 use constant INSTR_DISPATCH => {
-    0    => sub { },
+    0xCB, {
+          },
+    0xED, {
+          },
+    0xDD, {
+          },
+    0xFD, {
+          },
+    # un-prefixed instructions
+    0    => sub { },                                 # NOP
+    0x01 => sub { _LD_reg16_imm(shift, 'BC', @_); }, # LD BC, nn
+    0x02 => 1, # LD (BC), A
+    0x03 => sub { _INC_reg16(shift, 'BC'); },        # INC BC
+    0x04 => sub { _INC_reg8(shift, 'B'); },          # INC B
+    0x05 => sub { _DEC_reg8(shift, 'B'); },          # DEC B
+    0x06 => sub { _LD_reg8_imm(shift, 'B', @_); },   # LD B, n
+    0x07 => 1, # RLCA
+    0x08 => 1, # EX AF, AF'
+    0x09 => 1, # ADD HL, BC
+    0x0A => 1, # LD A, (BC)
+    0x0B => 1, # DEC BC
+    0x0C => 1, # INC C
+    0x0D => 1, # DEC C
+    0x0E => 2, # LD C, n
+    0x0F => 1, # RRCA
     0x76 => \&_HALT,
     0xC3 => \&_JP_unconditional,
 };
@@ -318,11 +372,13 @@ sub _fetch {
     );
     push @bytes, $self->memory()->peek($pc);
 
-    # IX/IY prefix
-    if($bytes[0] == 0xFD || $bytes[0] == 0xDD) {
-        $self->{index_prefix} = $bytes[0];
+    # prefix byte
+    # FIXME this knows nothing about the variable lengths of
+    #  prefixed instructions
+    if(ref(INSTR_LENGTHS()->{$bytes[0]}) {
+        push @{$self->{index_prefix}}, $bytes[0];
         $self->register('PC')->set($pc + 1);
-        return (@bytes, $self->_fetch());
+        return $self->_fetch();
     }
 
     die(sprintf("_fetch: Unknown instruction 0x%02X at 0x%04X\n", $bytes[0], $pc))
@@ -336,7 +392,7 @@ sub _fetch {
 # execute an instruction. NB, the PC already points at the next instr
 sub _execute {
     my($self, $instr) = (shift(), shift());
-    printf("_execute: 0x%02X (PC=0x%04X)\n", $instr, $self->register('PC')->get());
+    # printf("_execute: 0x%02X (PC=0x%04X)\n", $instr, $self->register('PC')->get());
     INSTR_DISPATCH()->{$instr}->($self, @_);
 }
 
@@ -344,6 +400,30 @@ sub _HALT { while(sleep(10)) {} }
 sub _JP_unconditional {
     my $self = shift;
     $self->register('PC')->set(shift() + 256 * shift());
+}
+sub _LD_reg8_imm {
+    my($self, $reg, $value) = @_;
+    $self->register($reg)->set($value);
+}
+sub _LD_reg16_imm {
+    my($self, $reg, @data) = @_;
+    $self->register($reg)->set($data[0] + 256 * $data[1]);
+}
+sub _INC_reg8 {
+    my($self, $reg) = @_;
+    # FIXME ...
+}
+sub _DEC_reg8 {
+    my($self, $reg) = @_;
+    # FIXME ...
+}
+sub _INC_reg16 {
+    my($self, $reg) = @_;
+    # FIXME ...
+}
+sub _DEC_reg16 {
+    my($self, $reg) = @_;
+    # FIXME ...
 }
 
 =head1 PROGRAMMING THE Z80
