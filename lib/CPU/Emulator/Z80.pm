@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.6 2008/02/17 16:37:15 drhyde Exp $
+# $Id: Z80.pm,v 1.7 2008/02/18 03:01:15 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -286,26 +286,49 @@ sub run {
 
     while($instrs_to_execute) {
         $instrs_to_execute--;
+        $self->{instr_lengths_table} = INSTR_LENGTHS();
+        $self->{instr_dispatch_table} = INSTR_DISPATCH();
         $self->_execute($self->_fetch());
         delete $self->{index_prefix};
+        delete $self->{instr_lengths_table};
+        delete $self->{instr_dispatch_table};
     }
 }
 }
+
+# SEE http://www.z80.info/decoding.htm
 
 use constant INSTR_LENGTHS => {
     (map { $_ => 'UNDEFINED' } (0 .. 255)),
     # length tables for prefixes ...
     0xCB, {
             (map { $_ => 'UNDEFINED' } (0 .. 255)),
+            # Roll, BIT, RES and SET go here
           },
     0xED, {
             (map { $_ => 'UNDEFINED' } (0 .. 255)),
+            # invalid instr, equiv to NOP (actually a NONI)
+            # this includes 0xDD, 0xED and 0xFD
+            (map { $_ => 1 } ( 0b00000000 .. 0b00111111,
+                               0b11000000 .. 0b11111111)),
           },
     0xDD, {
             (map { $_ => 'UNDEFINED' } (0 .. 255)),
+            0xCB => {
+                (map { $_ => 'UNDEFINED' } (0 .. 255)),
+            },
+            0xDD => 1, # NOP
+            0xED => 1, # NOP
+            0xFD => 1, # NOP
           },
     0xFD, {
             (map { $_ => 'UNDEFINED' } (0 .. 255)),
+            0xCB => {
+                (map { $_ => 'UNDEFINED' } (0 .. 255)),
+            },
+            0xDD => 1, # NOP
+            0xED => 1, # NOP
+            0xFD => 1, # NOP
           },
     # un-prefixed instructions
     0    => 1, # NOP
@@ -324,7 +347,9 @@ use constant INSTR_LENGTHS => {
     0x0D => 1, # DEC C
     0x0E => 2, # LD C, n
     0x0F => 1, # RRCA
+
     0x76 => 1, # HALT
+
     0xC3 => 3, # JP
 };
 
@@ -333,10 +358,18 @@ use constant INSTR_DISPATCH => {
     0xCB, {
           },
     0xED, {
+            (map { $_ => sub { } } ( 0b00000000 .. 0b00111111,
+                                     0b11000000 .. 0b11111111)),
           },
     0xDD, {
+            0xDD => sub { }, # NOP
+            0xED => sub { }, # NOP
+            0xFD => sub { }, # NOP
           },
     0xFD, {
+            0xDD => sub { }, # NOP
+            0xED => sub { }, # NOP
+            0xFD => sub { }, # NOP
           },
     # un-prefixed instructions
     0    => sub { },                                 # NOP
@@ -373,9 +406,9 @@ sub _fetch {
     push @bytes, $self->memory()->peek($pc);
 
     # prefix byte
-    # FIXME this knows nothing about the variable lengths of
-    #  prefixed instructions
     if(ref(INSTR_LENGTHS()->{$bytes[0]}) {
+        $self->{instr_dispatch_table} = $self->{instr_dispatch_table}->{$bytes[0]};
+        $self->{instr_length_table} = $self->{instr_length_table}->{$bytes[0]};
         push @{$self->{index_prefix}}, $bytes[0];
         $self->register('PC')->set($pc + 1);
         return $self->_fetch();
@@ -393,7 +426,7 @@ sub _fetch {
 sub _execute {
     my($self, $instr) = (shift(), shift());
     # printf("_execute: 0x%02X (PC=0x%04X)\n", $instr, $self->register('PC')->get());
-    INSTR_DISPATCH()->{$instr}->($self, @_);
+    $self->{instr_dispatch_table}->{$instr}->($self, @_);
 }
 
 sub _HALT { while(sleep(10)) {} }
