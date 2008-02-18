@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.8 2008/02/18 04:42:22 drhyde Exp $
+# $Id: Z80.pm,v 1.9 2008/02/18 15:59:23 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -297,7 +297,12 @@ sub run {
 }
 
 # SEE http://www.z80.info/decoding.htm
-
+use constant TABLE_R   => [qw(B C D E H L (HL) A)];
+use constant TABLE_RP  => [qw(BC DE HL SP)];
+use constant TABLE_RP2 => [qw(BC DE HL AF)];
+use constant TABLE_CC  => [qw(NZ Z NC C PO PE P M)];
+use constant TABLE_ALU => ["ADD A", "ADC A", "SUB", "SBC A", qw(AND XOR OR CP)];
+use cosntant TABLE_ROT => [qw(RLC RRC RL RR SLA SRA SLL SRL)];
 use constant INSTR_LENGTHS => {
     (map { $_ => 'UNDEFINED' } (0 .. 255)),
     # length tables for prefixes ...
@@ -323,28 +328,13 @@ use constant INSTR_LENGTHS => {
     0xED, {
             (map { $_ => 'UNDEFINED' } (0 .. 255)),
             # invalid instr, equiv to NOP (actually a NONI)
-            # FIXME does this include prefix bytes?
             (map { $_ => 1 } ( 0b00000000 .. 0b00111111,
                                0b11000000 .. 0b11111111)),
           },
     # un-prefixed instructions
-    # FIXME - synthesis these instead of having a girt big table
-    0    => 1, # NOP
-    0x01 => 3, # LD BC, nn
-    0x02 => 1, # LD (BC), A
-    0x03 => 1, # INC BC
-    0x04 => 1, # INC B
-    0x05 => 1, # DEC B
-    0x06 => 2, # LD B, n
-    0x07 => 1, # RLCA
-    0x08 => 1, # EX AF, AF'
-    0x09 => 1, # ADD HL, BC
-    0x0A => 1, # LD A, (BC)
-    0x0B => 1, # DEC BC
-    0x0C => 1, # INC C
-    0x0D => 1, # DEC C
-    0x0E => 2, # LD C, n
-    0x0F => 1, # RRCA
+    # x=0, z=0
+    (map { ($_ << 3) => 1 } (0, 1, 2), # NOP; EX AF, AF'; DJNZ
+    (map { ($_ << 3) => 2 } (3 .. 7)), # JR X, d
 
     0x76 => 1, # HALT
 
@@ -356,36 +346,29 @@ use constant INSTR_DISPATCH => {
     0xCB, {
           },
     0xED, {
-            (map { $_ => sub { } } ( 0b00000000 .. 0b00111111,
-                                     0b11000000 .. 0b11111111)),
+            (map { $_ => \&_NOP } ( 0b00000000 .. 0b00111111,
+                                    0b11000000 .. 0b11111111)),
           },
     0xDD, {
-            0xDD => sub { }, # NOP
-            0xED => sub { }, # NOP
-            0xFD => sub { }, # NOP
+            0xDD => \&_NOP,
+            0xED => \&_NOP,
+            0xFD => \&_NOP,
           },
     0xFD, {
-            0xDD => sub { }, # NOP
-            0xED => sub { }, # NOP
-            0xFD => sub { }, # NOP
+            0xDD => \&_NOP,
+            0xED => \&_NOP,
+            0xFD => \&_NOP,
           },
     # un-prefixed instructions
-    0    => sub { },                                 # NOP
-    0x01 => sub { _LD_reg16_imm(shift, 'BC', @_); }, # LD BC, nn
-    0x02 => 1, # LD (BC), A
-    0x03 => sub { _INC_reg16(shift, 'BC'); },        # INC BC
-    0x04 => sub { _INC_reg8(shift, 'B'); },          # INC B
-    0x05 => sub { _DEC_reg8(shift, 'B'); },          # DEC B
-    0x06 => sub { _LD_reg8_imm(shift, 'B', @_); },   # LD B, n
-    0x07 => 1, # RLCA
-    0x08 => 1, # EX AF, AF'
-    0x09 => 1, # ADD HL, BC
-    0x0A => 1, # LD A, (BC)
-    0x0B => 1, # DEC BC
-    0x0C => 1, # INC C
-    0x0D => 1, # DEC C
-    0x0E => 2, # LD C, n
-    0x0F => 1, # RRCA
+    0          => \&_NOP,
+    0b00001000 => \&_EX_AF_AF,
+    0b00010000 => \&_DJNZ,
+    0b00011000 => \&_JR_unconditonal,
+    (map { ($_ << 3) => sub {
+        _check_cond($_[0], TABLE_CC()->[$_ - 4]) &&
+        _JR_unconditonal(@_);
+    } } (4 .. 7)),
+
     0x76 => \&_HALT,
     0xC3 => \&_JP_unconditional,
 };
@@ -431,34 +414,19 @@ sub _execute {
     $self->{instr_dispatch_table}->{$instr}->($self, @_);
 }
 
+sub _check_cond {
+    my($self, $cond) = @_;
+    die("_check_cond NYI\n");
+}
+sub _NOP { }
 sub _HALT { while(sleep(10)) {} }
+sub _JR_unconditional {
+    my $self = shift;
+    die("_JR_unconditional NYI\n");
+}
 sub _JP_unconditional {
     my $self = shift;
     $self->register('PC')->set(shift() + 256 * shift());
-}
-sub _LD_reg8_imm {
-    my($self, $reg, $value) = @_;
-    $self->register($reg)->set($value);
-}
-sub _LD_reg16_imm {
-    my($self, $reg, @data) = @_;
-    $self->register($reg)->set($data[0] + 256 * $data[1]);
-}
-sub _INC_reg8 {
-    my($self, $reg) = @_;
-    # FIXME ...
-}
-sub _DEC_reg8 {
-    my($self, $reg) = @_;
-    # FIXME ...
-}
-sub _INC_reg16 {
-    my($self, $reg) = @_;
-    # FIXME ...
-}
-sub _DEC_reg16 {
-    my($self, $reg) = @_;
-    # FIXME ...
 }
 
 =head1 PROGRAMMING THE Z80
