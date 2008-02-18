@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.7 2008/02/18 03:01:15 drhyde Exp $
+# $Id: Z80.pm,v 1.8 2008/02/18 04:42:22 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -13,7 +13,7 @@ local $SIG{__DIE__} = sub {
     die(__PACKAGE__.": $_[0]\n");
 };
 
-use Scalar::Util qw(blessed);
+use Scalar::Util qw(blessed reftype);
 use CPU::Emulator::Memory::Banked;
 use CPU::Emulator::Z80::Register8;
 use CPU::Emulator::Z80::Register8F;
@@ -301,6 +301,21 @@ sub run {
 use constant INSTR_LENGTHS => {
     (map { $_ => 'UNDEFINED' } (0 .. 255)),
     # length tables for prefixes ...
+    0xDD, {
+            # NB lengths in here do *not* include the prefix
+            (map { $_ => sub { INSTR_LENGTHS()->{$_} } } ( 0 .. 255)),
+            0xCB => {
+                # NB lengths in here do *not* include either prefix byte
+                (map { $_ => 'UNDEFINED' } (0 .. 255)),
+            },
+            0xDD => 1, # NOP
+            0xED => 1, # NOP
+            0xFD => 1, # NOP
+          },
+    # synthesise a copy of 0xDD's table
+    0xFD, {
+            (map { $_ => sub { INSTR_LENGTHS()->{0xDD}->{$_} } } ( 0 .. 255)),
+          },
     0xCB, {
             (map { $_ => 'UNDEFINED' } (0 .. 255)),
             # Roll, BIT, RES and SET go here
@@ -308,29 +323,12 @@ use constant INSTR_LENGTHS => {
     0xED, {
             (map { $_ => 'UNDEFINED' } (0 .. 255)),
             # invalid instr, equiv to NOP (actually a NONI)
-            # this includes 0xDD, 0xED and 0xFD
+            # FIXME does this include prefix bytes?
             (map { $_ => 1 } ( 0b00000000 .. 0b00111111,
                                0b11000000 .. 0b11111111)),
           },
-    0xDD, {
-            (map { $_ => 'UNDEFINED' } (0 .. 255)),
-            0xCB => {
-                (map { $_ => 'UNDEFINED' } (0 .. 255)),
-            },
-            0xDD => 1, # NOP
-            0xED => 1, # NOP
-            0xFD => 1, # NOP
-          },
-    0xFD, {
-            (map { $_ => 'UNDEFINED' } (0 .. 255)),
-            0xCB => {
-                (map { $_ => 'UNDEFINED' } (0 .. 255)),
-            },
-            0xDD => 1, # NOP
-            0xED => 1, # NOP
-            0xFD => 1, # NOP
-          },
     # un-prefixed instructions
+    # FIXME - synthesis these instead of having a girt big table
     0    => 1, # NOP
     0x01 => 3, # LD BC, nn
     0x02 => 1, # LD (BC), A
@@ -406,7 +404,7 @@ sub _fetch {
     push @bytes, $self->memory()->peek($pc);
 
     # prefix byte
-    if(ref(INSTR_LENGTHS()->{$bytes[0]}) {
+    if(reftype(INSTR_LENGTHS()->{$bytes[0]}) eq 'HASH') {
         $self->{instr_dispatch_table} = $self->{instr_dispatch_table}->{$bytes[0]};
         $self->{instr_length_table} = $self->{instr_length_table}->{$bytes[0]};
         push @{$self->{index_prefix}}, $bytes[0];
@@ -414,11 +412,15 @@ sub _fetch {
         return $self->_fetch();
     }
 
+    my $bytes_to_fetch = $self->{instr_length_table}->{$bytes[0]};
+    $bytes_to_fetch = $bytes_to_fetch->()
+        if(reftype($bytes_to_fetch) eq 'CODE');
+    
     die(sprintf("_fetch: Unknown instruction 0x%02X at 0x%04X\n", $bytes[0], $pc))
-        if(INSTR_LENGTHS()->{$bytes[0]} eq 'UNDEFINED');
+        if($bytes_to_fetch eq 'UNDEFINED');
 
-    push @bytes, map { $self->memory()->peek($pc + $_) } (1 .. INSTR_LENGTHS()->{$bytes[0]} - 1);
-    $self->register('PC')->set($pc + INSTR_LENGTHS()->{$bytes[0]});
+    push @bytes, map { $self->memory()->peek($pc + $_) } (1 .. $bytes_to_fetch - 1);
+    $self->register('PC')->set($pc + $bytes_to_fetch);
     return @bytes;
 }
 
