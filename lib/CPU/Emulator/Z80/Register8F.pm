@@ -1,4 +1,4 @@
-# $Id: Register8F.pm,v 1.1 2008/02/16 13:05:48 drhyde Exp $
+# $Id: Register8F.pm,v 1.2 2008/02/18 04:50:04 drhyde Exp $
 
 package CPU::Emulator::Z80::Register8F;
 
@@ -26,7 +26,9 @@ It has the same methods as its parent, with the following additions:
 
 =head2 getX/setX/resetX
 
-where X can be any of S Z H P N C 5 or 3.
+where X can be any of S Z H P N C 5 or 3, where 5 and 3 are the
+un-named bits 5 and 3 of the register (0 being the least-significant
+bit).
 
 getX takes no parameters and returns a true or false value depending
 on the flag's status.
@@ -39,6 +41,17 @@ resetX takes no parameters and sets the flag false.
 
 =cut
 
+my %masks = (
+    S => 0b10000000, # sign (copy of MSB)
+    Z => 0b01000000, # zero
+    5 => 0b00100000,
+    H => 0b00010000, # half-carry (from bit 3 to 4)
+    3 => 0b00001000,
+    P => 0b00000100, # parity (set if even number of bits set)
+                     # overflow (2-comp result doesn't fit in reg)
+    N => 0b00000010, # subtract (was the last op a subtraction?)
+    C => 0b00000001  # carry (result doesn't fit in register)
+);
 sub AUTOLOAD {
 }
 
