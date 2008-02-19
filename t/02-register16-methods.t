@@ -13,7 +13,7 @@ $f->set(0b1010101010101010);
 ok($f->get() == 0b1010101010101010, "get() and set() work");
 
 $f->set(-100);
-ok($f->get() == (100 - 1) ^ 0xFFFF, sprintf("-ve is twos-complement shiny: %d == %d == %#016b", $f->get(), $f->getneg(), $f->get()));
+ok($f->get() == ((100 - 1) ^ 0xFFFF), sprintf("-ve is twos-complement shiny: %d == %d == %#016b", $f->get(), $f->getneg(), $f->get()));
 ok($f->getneg() == -100, "getneg works");
 
 $f->set(-32768);
