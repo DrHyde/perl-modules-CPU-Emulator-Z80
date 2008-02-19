@@ -1,4 +1,4 @@
-# $Id: ALU.pm,v 1.2 2008/02/16 15:00:06 drhyde Exp $
+# $Id: ALU.pm,v 1.3 2008/02/19 17:28:51 drhyde Exp $
 
 package CPU::Emulator::Z80::ALU;
 
@@ -29,9 +29,9 @@ Takes two 8/16-bit values and returns their 8/16-bit sum.
 sub add8 {
     my($self, $op1, $op2) = @_;
     my $lownybble = ($op1 & 0x0F) + ($op2 & 0x0F);
-    $self->flagHset($lownybble & 0x10); # half-carry
+    $self->register('F')->setH($lownybble & 0x10); # half-carry
     my $result = $lownybble + ($op1 & 0xF0) + ($op2 & 0xF0);
-    $self->flagCset($result & 0x100);
+    $self->register('F')->setC($result & 0x100);
     return $result & 0xFF
 }
 

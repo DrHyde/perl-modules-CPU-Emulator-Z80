@@ -1,4 +1,4 @@
-# $Id: Register8F.pm,v 1.2 2008/02/18 04:50:04 drhyde Exp $
+# $Id: Register8F.pm,v 1.3 2008/02/19 17:28:51 drhyde Exp $
 
 package CPU::Emulator::Z80::Register8F;
 
@@ -52,7 +52,29 @@ my %masks = (
     N => 0b00000010, # subtract (was the last op a subtraction?)
     C => 0b00000001  # carry (result doesn't fit in register)
 );
+
+sub _get {
+    my($self, $flag) = @_;
+    return $self->get() & $flag
+}
+sub _set {
+    my($self, $flag, $value) = @_;
+    $value = 1 if(!defined($value));
+    $self->set(
+        ($self->get() & (0xFF - $flag)) +
+        $flag * (0 + !!$value)
+    );
+}
+sub _reset {
+    my($self, $flag) = @_;
+    $self->set($self->get() & (0xFF - $flag));
+}
+
 sub AUTOLOAD {
+    (my $sub = $AUTOLOAD) =~ s/.*:://;
+    my($fn, $flag) = ($sub =~ /^(.*)(.)$/;
+    my $self = shift();
+    *{"_$fn"}->($self, $masks{$flag}, @_);
 }
 
 =head1 BUGS/WARNINGS/LIMITATIONS
