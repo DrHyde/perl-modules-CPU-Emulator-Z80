@@ -1,4 +1,4 @@
-# $Id: Register.pm,v 1.2 2008/02/19 21:19:29 drhyde Exp $
+# $Id: Register.pm,v 1.3 2008/02/19 23:51:08 drhyde Exp $
 
 package CPU::Emulator::Z80::Register;
 
@@ -22,28 +22,33 @@ registers of any size.
 
 =head2 get, set
 
-These do nothing.  They must be over-ridden in sub-classes such
+These do nothing in the base class.  They must be over-ridden in
+sub-classes such
 that setting stores a value, truncated to the right length, and
-getting retrieves a value, truncated to the right length.  The
-set() method must accept -ve values and store them in
+getting retrieves a value, truncated to the right length.
+
+The set() method must accept -ve values and store them in
 2s-complement.  Its behaviour is undefined if the user is foolish
 enough to store too large a -ve value.
 
-=head2 getneg
+The get() method must return the value assuming it to be unsigned.
 
-Decodes the register 2s-complement-ly and returns a negative value.
-Its behaviour is undefined if you are foolish enough to call it
-when the register's MSB isn't set.
+=head2 getsigned
+
+Decodes the register 2s-complement-ly and return a signed value.
 
 =cut
 
-sub getneg {
+sub getsigned {
     my $self = shift;
+    my $value = $self->get();
+    # if MSB == 0, just return the value
+    return $value unless($value & (2 ** ($self->{bits} - 1)));
     # algorithm is:
     #   flip all bits
     #   add 1
     #   negate
-    return -1 * (($self->get() ^ (2 ** $self->{bits} - 1)) + 1);
+    return -1 * (($value ^ (2 ** $self->{bits} - 1)) + 1);
 }
 
 =head1 FIELDS
