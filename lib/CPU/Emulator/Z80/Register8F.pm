@@ -1,11 +1,11 @@
-# $Id: Register8F.pm,v 1.3 2008/02/19 17:28:51 drhyde Exp $
+# $Id: Register8F.pm,v 1.4 2008/02/19 18:40:24 drhyde Exp $
 
 package CPU::Emulator::Z80::Register8F;
 
 use strict;
 use warnings;
 
-use vars qw($VERSION);
+use vars qw($VERSION $AUTOLOAD);
 
 use base qw(CPU::Emulator::Z80::Register8);
 
@@ -72,9 +72,12 @@ sub _reset {
 
 sub AUTOLOAD {
     (my $sub = $AUTOLOAD) =~ s/.*:://;
-    my($fn, $flag) = ($sub =~ /^(.*)(.)$/;
-    my $self = shift();
-    *{"_$fn"}->($self, $masks{$flag}, @_);
+    my($fn, $flag) = ($sub =~ /^(.*)(.)$/);
+    if($fn =~ /^(get|set|reset)$/ && exists($masks{$flag})) {
+        my $self = shift();
+        no strict 'refs';
+        return *{"_$fn"}->($self, $masks{$flag}, @_);
+    }
 }
 
 =head1 BUGS/WARNINGS/LIMITATIONS
