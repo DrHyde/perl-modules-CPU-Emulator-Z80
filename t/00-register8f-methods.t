@@ -1,17 +1,13 @@
 use strict;
 $^W = 1;
 
-use Test::More tests => 37;
+use Test::More tests => 36;
 
 use CPU::Emulator::Z80::Register8F;
 
 my $f = CPU::Emulator::Z80::Register8F->new();
-ok($f->isa('CPU::Emulator::Z80::Register8') &&
-   $f->isa('CPU::Emulator::Z80::Register'),
+ok($f->isa('CPU::Emulator::Z80::Register8'),
    "Inheritance tree is hunky-dory");
-
-$f->set(0b10101010);
-ok($f->get() == 0b10101010, "get() and set() work");
 
 # S => 0b10000000
 # Z => 0b01000000
@@ -22,6 +18,7 @@ ok($f->get() == 0b10101010, "get() and set() work");
 # N => 0b00000010
 # C => 0b00000001
 
+$f->set(0b10101010);
 ok($f->getS() &&
   !$f->getZ() &&
    $f->get5() &&

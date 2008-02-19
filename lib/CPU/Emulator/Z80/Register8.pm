@@ -1,4 +1,4 @@
-# $Id: Register8.pm,v 1.1 2008/02/15 00:06:41 drhyde Exp $
+# $Id: Register8.pm,v 1.2 2008/02/19 21:19:29 drhyde Exp $
 
 package CPU::Emulator::Z80::Register8;
 
@@ -45,6 +45,7 @@ sub new {
     my $self = {};
     if(@_ == 4) { $self = { @_ }; }
      else { $self->{value} = shift; }
+    $self->{bits} = 8;
     bless $self, $class;
 }
 

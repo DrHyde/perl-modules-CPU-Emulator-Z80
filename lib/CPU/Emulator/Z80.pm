@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.9 2008/02/18 15:59:23 drhyde Exp $
+# $Id: Z80.pm,v 1.10 2008/02/19 21:19:29 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -302,7 +302,7 @@ use constant TABLE_RP  => [qw(BC DE HL SP)];
 use constant TABLE_RP2 => [qw(BC DE HL AF)];
 use constant TABLE_CC  => [qw(NZ Z NC C PO PE P M)];
 use constant TABLE_ALU => ["ADD A", "ADC A", "SUB", "SBC A", qw(AND XOR OR CP)];
-use cosntant TABLE_ROT => [qw(RLC RRC RL RR SLA SRA SLL SRL)];
+use constant TABLE_ROT => [qw(RLC RRC RL RR SLA SRA SLL SRL)];
 use constant INSTR_LENGTHS => {
     (map { $_ => 'UNDEFINED' } (0 .. 255)),
     # length tables for prefixes ...

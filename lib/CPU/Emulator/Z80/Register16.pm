@@ -1,4 +1,4 @@
-# $Id: Register16.pm,v 1.1 2008/02/15 00:06:40 drhyde Exp $
+# $Id: Register16.pm,v 1.2 2008/02/19 21:19:29 drhyde Exp $
 
 package CPU::Emulator::Z80::Register16;
 
@@ -7,17 +7,13 @@ use warnings;
 
 use vars qw($VERSION);
 
-use base qw(CPU::Emulator::Z80);
+use base qw(CPU::Emulator::Z80::Register);
 
 $VERSION = '1.0';
 
 =head1 NAME
 
 CPU::Emulator::Z80::Register16 - a 16 bit register for a Z80
-
-=head1 SYNOPSIS
-
-    blah blah blah
 
 =head1 DESCRIPTION
 
@@ -49,6 +45,7 @@ sub new {
     my $self = {};
     if(@_ == 4) { $self = { @_ }; }
      else { $self->{value} = shift; }
+    $self->{bits} = 16;
     bless $self, $class;
 }
 
