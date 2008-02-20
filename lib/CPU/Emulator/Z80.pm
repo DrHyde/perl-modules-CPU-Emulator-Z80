@@ -1,11 +1,11 @@
-# $Id: Z80.pm,v 1.12 2008/02/20 02:19:10 drhyde Exp $
+# $Id: Z80.pm,v 1.13 2008/02/20 19:56:58 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
 use strict;
 use warnings;
 
-use vars qw($VERSION);
+use vars qw($VERSION %INSTR_LENGTHS %INSTR_DISPATCH);
 
 $VERSION = '1.0';
 
@@ -14,6 +14,10 @@ local $SIG{__DIE__} = sub {
 };
 
 use Scalar::Util qw(blessed reftype);
+use Tie::Hash::Vivify;
+use Carp qw(confess);
+use Data::Dumper;
+
 use CPU::Emulator::Memory::Banked;
 use CPU::Emulator::Z80::Register8;
 use CPU::Emulator::Z80::Register8F;
@@ -78,13 +82,12 @@ specified at all, then a CPU::Emulator::Memory::Banked is created with
 For each of A B C D E F R HL IX IY PC SP, an integer, the starting
 value for that register, defaulting to 0.
 
-=item init_A', init_B', ...
+=item init_A_, init_B_, ...
 
 For each of A B C D E F HL, an integer for the starting value for that
-register in the alternate set, defaulting to 0.  Note that in a
-somewhat unperlish fashion, the members of the alternate register set
-are referred to consistently as X' (that is, the register name with a
-following apostrophe).
+register in the alternate set, defaulting to 0.  Note that contrary to
+normal Z80 custom these are named as X_ instead of X'.  This is just for
+quoting convenience.
 
 =back
 
@@ -108,44 +111,48 @@ sub new {
         $args{memory} = CPU::Emulator::Memory::Banked->new();
     }
 
-    foreach my $register (@REGISTERS, map { "$_'" } @ALTREGISTERS) {
+    foreach my $register (@REGISTERS, map { "${_}_" } @ALTREGISTERS) {
         $args{"init_$register"} = 0
             if(!exists($args{"init_$register"}));
     }
 
     # bless early so we can close over it ...
-    my $self = bless {
+    my $self;
+    $self = bless {
         memory      => $args{memory},
-        hw_registers => {
-            (map {
-                $_ => CPU::Emulator::Z80::Register8->new($args{"init_$_"})
-            } @REGISTERS8),
-            (map {
-                $_ => CPU::Emulator::Z80::Register16->new($args{"init_$_"})
-            } @REGISTERS16),
-        }
+        registers => Tie::Hash::Vivify->new(sub { confess("No auto-vivifying registers!\n".Dumper(\@_)) }),
+        hw_registers => Tie::Hash::Vivify->new(sub { confess("No auto-vivifying hw_registers!\n".Dumper(\@_)) }),
+        derived_registers => Tie::Hash::Vivify->new(sub { confess("No auto-vivifying derived_registers!\n".Dumper(\@_)) }),
     }, $class;
 
-    foreach my $register (@ALTREGISTERS) {
-        $self->{hw_registers}->{$register."'"} =
-            blessed($self->{hw_registers}->{$register})->new($args{"init_$register'"});
-    }
+    $self->{hw_registers}->{$_} = CPU::Emulator::Z80::Register8->new($args{"init_$_"})
+        foreach(@REGISTERS8);
+
+    $self->{hw_registers}->{$_} = CPU::Emulator::Z80::Register16->new($args{"init_$_"})
+        foreach(@REGISTERS16);
+
+    $self->{hw_registers}->{$_.'_'} = blessed($self->{hw_registers}->{$_})->new($args{"init_${_}_"})
+        foreach(@ALTREGISTERS);
 
     bless $self->{hw_registers}->{$_}, 'CPU::Emulator::Z80::Register8F'
-        foreach(qw(F F'));
+        foreach(qw(F F_));
 
-    $self->{derived_registers} = {
-        AF   => $self->_derive_register16(qw(A F)),
-        BC   => $self->_derive_register16(qw(B C)),
-        DE   => $self->_derive_register16(qw(D E)),
-        H    => $self->_derive_register8(qw(HL high)),
-        L    => $self->_derive_register8(qw(HL low)),
-        HIX  => $self->_derive_register8(qw(IX high)),
-        LIX  => $self->_derive_register8(qw(IX low)),
-        HIY  => $self->_derive_register8(qw(IY high)),
-        LIY  => $self->_derive_register8(qw(IY low)),
-    };
-    $self->{registers} = { %{$self->{hw_registers}}, %{$self->{derived_registers}} };
+    $self->{derived_registers}->{AF}  = $self->_derive_register16(qw(A F));
+    $self->{derived_registers}->{AF_} = $self->_derive_register16(qw(A_ F_));
+    $self->{derived_registers}->{BC}  = $self->_derive_register16(qw(B C));
+    $self->{derived_registers}->{DE}  = $self->_derive_register16(qw(D E));
+    $self->{derived_registers}->{H}   = $self->_derive_register8(qw(HL high));
+    $self->{derived_registers}->{L}   = $self->_derive_register8(qw(HL low));
+    $self->{derived_registers}->{HIX} = $self->_derive_register8(qw(IX high));
+    $self->{derived_registers}->{LIX} = $self->_derive_register8(qw(IX low));
+    $self->{derived_registers}->{HIY} = $self->_derive_register8(qw(IY high));
+    $self->{derived_registers}->{LIY} = $self->_derive_register8(qw(IY low));
+    
+    $self->{registers}->{$_} = $self->{hw_registers}->{$_}
+        foreach(keys %{$self->{hw_registers}});
+    $self->{registers}->{$_} = $self->{derived_registers}->{$_}
+        foreach(keys %{$self->{derived_registers}});
+
     return $self;
 }
 
@@ -200,7 +207,7 @@ sub memory {
 =head2 register
 
 Return the object representing a specified register.  This can be any
-of the real registers (eg D or D') or a derived register (eg DE or L).
+of the real registers (eg D or D_) or a derived register (eg DE or L).
 
 =cut
 
@@ -222,19 +229,19 @@ sub status {
     return
         join('', map {
             chr($self->register($_)->get())
-        } qw(A B C D E F A' B' C' D' E' F' R))
+        } qw(A B C D E F A_ B_ C_ D_ E_ F_ R))
        .join('', map {
             chr($self->register($_)->get() >> 8),
             chr($self->register($_)->get() & 0xFF),
-        } qw(SP PC IX IY HL HL'));
+        } qw(SP PC IX IY HL HL_));
 }
 sub _status_load {
     my($self, $status) = @_;
     my @regs = split(//, $status);
     $self->register($_)->set(ord(shift(@regs)))
-        foreach(qw(A B C D E F A' B' C' D' E' F' R));
+        foreach(qw(A B C D E F A_ B_ C_ D_ E_ F_ R));
     $self->register($_)->set(256 * ord(shift(@regs)) + ord(shift(@regs)))
-        foreach(qw(SP PC IX IY HL HL'));
+        foreach(qw(SP PC IX IY HL HL_));
 }
 
 =head2 registers
@@ -260,12 +267,12 @@ sub print_registers {
     my $self = shift;
     printf("
              SZ5H3PNC                             SZ5H3PNC
-A:  0x%02X F:  %08b HL:  0x%04X    A': 0x%02X F': %08b HL': 0x%04X
-B:  0x%02X C:  0x%02X                    B': 0x%02X C': 0x%02X
-D:  0x%02X E:  0x%02X                    D': 0x%02X E': 0x%02X
+A:  0x%02X F:  %08b HL:  0x%04X    A_: 0x%02X F_: %08b HL_: 0x%04X
+B:  0x%02X C:  0x%02X                    B_: 0x%02X C_: 0x%02X
+D:  0x%02X E:  0x%02X                    D_: 0x%02X E_: 0x%02X
 
 R:  0x%02X IX: 0x%04X IY: 0x%04X SP: 0x%04X PC: 0x%04X
-", map { $self->register($_)->get(); } qw(A F HL A' F' HL' B C B' C' D E D' E' R IX IY SP PC));
+", map { $self->register($_)->get(); } qw(A F HL A_ F_ HL_ B C B_ C_ D E D_ E_ R IX IY SP PC));
 }
 
 =head2 run
@@ -278,34 +285,16 @@ of the next instruction.
 
 =cut
 
-{ my $instrs_to_execute;
-sub run {
-    my $self = shift;
-    if(@_) { $instrs_to_execute = shift(); }
-     else { $instrs_to_execute = -1; }
-
-    while($instrs_to_execute) {
-        $instrs_to_execute--;
-        $self->{instr_lengths_table} = INSTR_LENGTHS();
-        $self->{instr_dispatch_table} = INSTR_DISPATCH();
-        $self->_execute($self->_fetch());
-        delete $self->{prefix_bytes};
-        delete $self->{instr_lengths_table};
-        delete $self->{instr_dispatch_table};
-    }
-}
-}
-
 # SEE http://www.z80.info/decoding.htm
 # NB when decoding, x == first 2 bits, y == next 3, z == last 3
 #                   p == first 2 bits of y, q == last bit of y
-use constant TABLE_R   => [qw(B C D E H L (HL) A)];
-use constant TABLE_RP  => [qw(BC DE HL SP)];
-use constant TABLE_RP2 => [qw(BC DE HL AF)];
-use constant TABLE_CC  => [qw(NZ Z NC C PO PE P M)];
-use constant TABLE_ALU => ["ADD A", "ADC A", "SUB", "SBC A", qw(AND XOR OR CP)];
-use constant TABLE_ROT => [qw(RLC RRC RL RR SLA SRA SLL SRL)];
-use constant INSTR_LENGTHS => {
+my @TABLE_R   = (qw(B C D E H L (HL) A));
+my @TABLE_RP  = (qw(BC DE HL SP));
+my @TABLE_RP2 = (qw(BC DE HL AF));
+my @TABLE_CC  = (qw(NZ Z NC C PO PE P M));
+my @TABLE_ALU = ("ADD A", "ADC A", "SUB", "SBC A", qw(AND XOR OR CP));
+my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
+%INSTR_LENGTHS = (
     (map { $_ => 'UNDEFINED' } (0 .. 255)),
     # un-prefixed instructions
     # x=0, z=0
@@ -344,7 +333,7 @@ use constant INSTR_LENGTHS => {
     # length tables for prefixes ...
     0xDD, {
             # NB lengths in here do *not* include the prefix
-            (map { $_ => sub { INSTR_LENGTHS()->{$_} } } ( 0 .. 255)),
+            (map { $_ => sub { $INSTR_LENGTHS{$_} } } ( 0 .. 255)),
             0xCB => {
                 # NB lengths in here do *not* include either prefix byte
                 (map { $_ => 'UNDEFINED' } (0 .. 255)),
@@ -355,7 +344,7 @@ use constant INSTR_LENGTHS => {
           },
     # synthesise a copy of 0xDD's table
     0xFD, {
-            (map { $_ => sub { INSTR_LENGTHS()->{0xDD}->{$_} } } ( 0 .. 255)),
+            (map { $_ => sub { $INSTR_LENGTHS{0xDD}->{$_} } } ( 0 .. 255)),
           },
     0xCB, {
             (map { $_ => 'UNDEFINED' } (0 .. 255)),
@@ -367,10 +356,10 @@ use constant INSTR_LENGTHS => {
             (map { $_ => 1 } ( 0b00000000 .. 0b00111111,
                                0b11000000 .. 0b11111111)),
           },
-};
+);
 
 # these are all passed a list of parameter bytes
-use constant INSTR_DISPATCH => {
+%INSTR_DISPATCH = (
     # un-prefixed instructions
     0          => \&_NOP,
     0b00001000 => \&_EX_AF_AF,
@@ -421,7 +410,26 @@ use constant INSTR_DISPATCH => {
             0xED => \&_NOP,
             0xFD => \&_NOP,
           },
-};
+);
+
+{ my $instrs_to_execute;
+sub run {
+    my $self = shift;
+    if(@_) { $instrs_to_execute = shift(); }
+     else { $instrs_to_execute = -1; }
+
+    while($instrs_to_execute) {
+        $instrs_to_execute--;
+        $self->{instr_length_table} = \%INSTR_LENGTHS;
+        $self->{instr_dispatch_table} = \%INSTR_DISPATCH;
+        $self->{prefix_bytes} = [];
+        $self->_execute($self->_fetch());
+        delete $self->{prefix_bytes};
+        delete $self->{instr_lengths_table};
+        delete $self->{instr_dispatch_table};
+    }
+}
+}
 
 # fetch all the bytes for an instruction and return them
 sub _fetch {
@@ -434,25 +442,26 @@ sub _fetch {
     $self->register('R')->set(
         ($r & 0b10000000) | (($r + 1) & 0b01111111)
     );
-    push @bytes, $self->memory()->peek($pc);
+    my $byte = $self->memory()->peek($pc);
+    push @bytes, $byte;
 
     # prefix byte
-    if(reftype(INSTR_LENGTHS()->{$bytes[0]}) eq 'HASH') {
-        $self->{instr_dispatch_table} = $self->{instr_dispatch_table}->{$bytes[0]};
-        $self->{instr_length_table} = $self->{instr_length_table}->{$bytes[0]};
-        push @{$self->{prefix_bytes}}, $bytes[0];
+    if(ref($byte) && reftype($byte) eq 'HASH') {
+        $self->{instr_dispatch_table} = $self->{instr_dispatch_table}->{$byte};
+        $self->{instr_length_table} = $self->{instr_length_table}->{$byte};
+        push @{$self->{prefix_bytes}}, $byte;
         $self->register('PC')->set($pc + 1);
         return $self->_fetch();
     }
 
-    my $bytes_to_fetch = $self->{instr_length_table}->{$bytes[0]};
+    my $bytes_to_fetch = $self->{instr_length_table}->{$byte};
     $bytes_to_fetch = $bytes_to_fetch->()
-        if(reftype($bytes_to_fetch) eq 'CODE');
+        if(ref($bytes_to_fetch) && reftype($bytes_to_fetch) eq 'CODE');
     
     die(sprintf(
         "_fetch: Unknown instruction %#02X at 0x%04X with prefix bytes "
           .join(' ', map { "%#02X" } @{$self->{prefix_bytes}})
-          ."\n", $bytes[0], $pc, @{$self->{prefix_bytes}}
+          ."\n", $byte, $pc, @{$self->{prefix_bytes}}
     )) if($bytes_to_fetch eq 'UNDEFINED');
 
     push @bytes, map { $self->memory()->peek($pc + $_) } (1 .. $bytes_to_fetch - 1);
@@ -489,6 +498,16 @@ sub _JR_unconditional {
 sub _JP_unconditional {
     my $self = shift;
     $self->register('PC')->set(shift() + 256 * shift());
+}
+
+sub _EX_AF_AF {
+    shift()->_swap_regs(qw(AF AF_));
+}
+sub _swap_regs {
+    my($self, $r1, $r2) = @_;
+    my $temp = $self->register($r1)->get();
+    $self->register($r1)->set($self->register($r2)->get());
+    $self->register($r2)->set($temp);
 }
 
 =head1 PROGRAMMING THE Z80
