@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.10 2008/02/19 21:19:29 drhyde Exp $
+# $Id: Z80.pm,v 1.11 2008/02/20 02:18:06 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -289,7 +289,7 @@ sub run {
         $self->{instr_lengths_table} = INSTR_LENGTHS();
         $self->{instr_dispatch_table} = INSTR_DISPATCH();
         $self->_execute($self->_fetch());
-        delete $self->{index_prefix};
+        delete $self->{prefix_bytes};
         delete $self->{instr_lengths_table};
         delete $self->{instr_dispatch_table};
     }
@@ -297,6 +297,8 @@ sub run {
 }
 
 # SEE http://www.z80.info/decoding.htm
+# NB when decoding, x == first 2 bits, y == next 3, z == last 3
+#                   p == first 2 bits of y, q == last bit of y
 use constant TABLE_R   => [qw(B C D E H L (HL) A)];
 use constant TABLE_RP  => [qw(BC DE HL SP)];
 use constant TABLE_RP2 => [qw(BC DE HL AF)];
@@ -305,6 +307,40 @@ use constant TABLE_ALU => ["ADD A", "ADC A", "SUB", "SBC A", qw(AND XOR OR CP)];
 use constant TABLE_ROT => [qw(RLC RRC RL RR SLA SRA SLL SRL)];
 use constant INSTR_LENGTHS => {
     (map { $_ => 'UNDEFINED' } (0 .. 255)),
+    # un-prefixed instructions
+    # x=0, z=0
+    (map { ($_ << 3) => 1 } (0, 1, 2), # NOP; EX AF, AF'; DJNZ
+    (map { ($_ << 3) => 2 } (3 .. 7)), # JR X, d
+    # x=0, z=1
+    (map { 0b00000001 | ($_ << 4 ) => 3 } (0 .. 3)), # LD rp[p], nn
+    (map { 0b00001001 | ($_ << 4 ) => 1 } (0 .. 3)), # ADD HL, rp[p]
+    # x=0, z=2
+    # LD (BC/DE), A; LD A, (BC/DE)
+    (map { 0b00000010 | ($_ << 3) => 1 } (0b000, 0b010, 0b001, 0b011)),
+    # LD (nn), HL/A, LD HL/A, (nn)
+    (map { 0b00000010 | ($_ << 3) => 3 } (0b100, 0b110, 0b101, 0b111)),
+    # x=0, z=3
+    # q=0: INC rp[p]
+    # q=1: DEC rp[p]
+    (map { 0b00000011 | ($_ << 3) => 1 } (0 .. 7)),
+    # x=0, z=4: INC r[y]
+    (map { 0b00000100 | ($_ << 3) => 1 } (0 .. 7)),
+    # x=0, z=5: DEC r[y]
+    (map { 0b00000101 | ($_ << 3) => 1 } (0 .. 7)),
+    # x=0, z=6: LD r[y], n
+    (map { 0b00000110 | ($_ << 3) => 2 } (0 .. 7)),
+    # x=0, z=7: RLCA, RRCA, RLA, RRA, DAA, CPL, SCF, CCF
+    (map { 0b00000111 | ($_ << 3) => 2 } (0 .. 7)),
+
+    # x=1: LD r[y], r[z] (exception: y=6, z=6 is HALT
+    (map { 0b01000000 + $_ => 1 } (0 .. 0b111111)),
+
+    # x=2: alu[y] on A and r[z]
+    (map { 0b10000000 + $_ => 1 } (0 .. 0b111111)),
+
+
+    0xC3 => 3, # JP
+    # and finally ...
     # length tables for prefixes ...
     0xDD, {
             # NB lengths in here do *not* include the prefix
@@ -331,18 +367,44 @@ use constant INSTR_LENGTHS => {
             (map { $_ => 1 } ( 0b00000000 .. 0b00111111,
                                0b11000000 .. 0b11111111)),
           },
-    # un-prefixed instructions
-    # x=0, z=0
-    (map { ($_ << 3) => 1 } (0, 1, 2), # NOP; EX AF, AF'; DJNZ
-    (map { ($_ << 3) => 2 } (3 .. 7)), # JR X, d
-
-    0x76 => 1, # HALT
-
-    0xC3 => 3, # JP
 };
 
 # these are all passed a list of parameter bytes
 use constant INSTR_DISPATCH => {
+    # un-prefixed instructions
+    0          => \&_NOP,
+    0b00001000 => \&_EX_AF_AF,
+    0b00010000 => \&_DJNZ,
+    0b00011000 => \&_JR_unconditonal,
+    (map { ($_ << 3) => sub {
+        _check_cond($_[0], TABLE_CC()->[$_ - 4]) &&
+        _JR_unconditonal(@_);
+    } } (4 .. 7)),
+    (map { 0b00000001 | ($_ << 4 ) => 3 } (0 .. 3)), # LD rp[p], nn
+    (map { 0b00001001 | ($_ << 4 ) => 1 } (0 .. 3)), # ADD HL, rp[p]
+    # LD (BC/DE), A; LD A, (BC/DE)
+    (map { 0b00000010 | ($_ << 3) => 1 } (0b000, 0b010, 0b001, 0b011)),
+    # LD (nn), HL/A, LD HL/A, (nn)
+    (map { 0b00000010 | ($_ << 3) => 3 } (0b100, 0b110, 0b101, 0b111)),
+    # q=0: INC rp[p]
+    # q=1: DEC rp[p]
+    (map { 0b00000011 | ($_ << 3) => 1 } (0 .. 7)),
+    # INC r[y]
+    (map { 0b00000100 | ($_ << 3) => 1 } (0 .. 7)),
+    # DEC r[y]
+    (map { 0b00000101 | ($_ << 3) => 1 } (0 .. 7)),
+    # LD r[y], n
+    (map { 0b00000110 | ($_ << 3) => 2 } (0 .. 7)),
+    # RLCA, RRCA, RLA, RRA, DAA, CPL, SCF, CCF
+    (map { 0b00000111 | ($_ << 3) => 2 } (0 .. 7)),
+    # LD r[y], r[z] (exception: y=6, z=6 is HALT
+    (map { 0b01000000 + $_ => 1 } (0 .. 0b111111)),
+    # alu[y] on A and r[z]
+    (map { 0b10000000 + $_ => 1 } (0 .. 0b111111)),
+
+    0x76 => \&_HALT,
+    0xC3 => \&_JP_unconditional,
+    # and finally,  prefixed instructions
     0xCB, {
           },
     0xED, {
@@ -359,18 +421,6 @@ use constant INSTR_DISPATCH => {
             0xED => \&_NOP,
             0xFD => \&_NOP,
           },
-    # un-prefixed instructions
-    0          => \&_NOP,
-    0b00001000 => \&_EX_AF_AF,
-    0b00010000 => \&_DJNZ,
-    0b00011000 => \&_JR_unconditonal,
-    (map { ($_ << 3) => sub {
-        _check_cond($_[0], TABLE_CC()->[$_ - 4]) &&
-        _JR_unconditonal(@_);
-    } } (4 .. 7)),
-
-    0x76 => \&_HALT,
-    0xC3 => \&_JP_unconditional,
 };
 
 # fetch all the bytes for an instruction and return them
@@ -390,7 +440,7 @@ sub _fetch {
     if(reftype(INSTR_LENGTHS()->{$bytes[0]}) eq 'HASH') {
         $self->{instr_dispatch_table} = $self->{instr_dispatch_table}->{$bytes[0]};
         $self->{instr_length_table} = $self->{instr_length_table}->{$bytes[0]};
-        push @{$self->{index_prefix}}, $bytes[0];
+        push @{$self->{prefix_bytes}}, $bytes[0];
         $self->register('PC')->set($pc + 1);
         return $self->_fetch();
     }
@@ -399,8 +449,11 @@ sub _fetch {
     $bytes_to_fetch = $bytes_to_fetch->()
         if(reftype($bytes_to_fetch) eq 'CODE');
     
-    die(sprintf("_fetch: Unknown instruction 0x%02X at 0x%04X\n", $bytes[0], $pc))
-        if($bytes_to_fetch eq 'UNDEFINED');
+    die(sprintf(
+        "_fetch: Unknown instruction %#02X at 0x%04X with prefix bytes "
+          .join(' ', map { "%#02X" } @{$self->{prefix_bytes}})
+          ."\n", $bytes[0], $pc, @{$self->{prefix_bytes}}
+    )) if($bytes_to_fetch eq 'UNDEFINED');
 
     push @bytes, map { $self->memory()->peek($pc + $_) } (1 .. $bytes_to_fetch - 1);
     $self->register('PC')->set($pc + $bytes_to_fetch);
@@ -411,6 +464,15 @@ sub _fetch {
 sub _execute {
     my($self, $instr) = (shift(), shift());
     # printf("_execute: 0x%02X (PC=0x%04X)\n", $instr, $self->register('PC')->get());
+    die(sprintf(
+        "_execute: No entry in dispatch table for instr "
+          .join(' ', map { "%#02X" } (@{$self->{prefix_bytes}}, $instr))
+          ." of known length, near %#04X\n",
+        @{$self->{prefix_bytes}}, $instr, $self->register('PC')->get()
+    )) unless(
+        exists($self->{instr_dispatch_table}->{$instr}) &&
+        reftype($self->{instr_dispatch_table}->{$instr}) eq 'CODE'
+    );
     $self->{instr_dispatch_table}->{$instr}->($self, @_);
 }
 
