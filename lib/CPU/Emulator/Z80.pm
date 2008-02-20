@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.11 2008/02/20 02:18:06 drhyde Exp $
+# $Id: Z80.pm,v 1.12 2008/02/20 02:19:10 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -309,7 +309,7 @@ use constant INSTR_LENGTHS => {
     (map { $_ => 'UNDEFINED' } (0 .. 255)),
     # un-prefixed instructions
     # x=0, z=0
-    (map { ($_ << 3) => 1 } (0, 1, 2), # NOP; EX AF, AF'; DJNZ
+    (map { ($_ << 3) => 1 } (0, 1, 2)), # NOP; EX AF, AF'; DJNZ
     (map { ($_ << 3) => 2 } (3 .. 7)), # JR X, d
     # x=0, z=1
     (map { 0b00000001 | ($_ << 4 ) => 3 } (0 .. 3)), # LD rp[p], nn
