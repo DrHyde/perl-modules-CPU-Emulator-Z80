@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.13 2008/02/20 19:56:58 drhyde Exp $
+# $Id: Z80.pm,v 1.14 2008/02/20 22:45:09 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -140,9 +140,13 @@ sub new {
     $self->{derived_registers}->{AF}  = $self->_derive_register16(qw(A F));
     $self->{derived_registers}->{AF_} = $self->_derive_register16(qw(A_ F_));
     $self->{derived_registers}->{BC}  = $self->_derive_register16(qw(B C));
+    $self->{derived_registers}->{BC_}  = $self->_derive_register16(qw(B_ C_));
     $self->{derived_registers}->{DE}  = $self->_derive_register16(qw(D E));
+    $self->{derived_registers}->{DE_}  = $self->_derive_register16(qw(D_ E_));
     $self->{derived_registers}->{H}   = $self->_derive_register8(qw(HL high));
+    $self->{derived_registers}->{H_}   = $self->_derive_register8(qw(HL_ high));
     $self->{derived_registers}->{L}   = $self->_derive_register8(qw(HL low));
+    $self->{derived_registers}->{L_}   = $self->_derive_register8(qw(HL_ low));
     $self->{derived_registers}->{HIX} = $self->_derive_register8(qw(IX high));
     $self->{derived_registers}->{LIX} = $self->_derive_register8(qw(IX low));
     $self->{derived_registers}->{HIY} = $self->_derive_register8(qw(IY high));
@@ -258,7 +262,7 @@ sub registers {
     my $self = shift;
     return {
         map {
-            $_ => sprintf('0x%X', $self->register($_)->get())
+            $_ => $self->register($_)->get()
         } keys %{$self->{hw_registers}}
     }
 }

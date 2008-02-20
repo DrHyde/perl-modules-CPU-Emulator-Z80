@@ -15,3 +15,5 @@ lib/CPU/Emulator/Z80/ALU.pm
 lib/CPU/Emulator/Z80/Register8F.pm
 t/01-register8-methods.t
 t/02-register16-methods.t
+t/03-cpu-constructor-and-register-access.t
+opcodes.txt
