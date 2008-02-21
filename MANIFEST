@@ -2655,3 +2655,4 @@ t/fuse-tests/fuse2yaml.in
 t/fuse-tests/README
 t/fuse-tests/tests.expected
 t/fuse-tests/tests.in
+t/04-FUSE-tests.t

@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.14 2008/02/20 22:45:09 drhyde Exp $
+# $Id: Z80.pm,v 1.15 2008/02/21 20:02:31 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -463,8 +463,8 @@ sub _fetch {
         if(ref($bytes_to_fetch) && reftype($bytes_to_fetch) eq 'CODE');
     
     die(sprintf(
-        "_fetch: Unknown instruction %#02X at 0x%04X with prefix bytes "
-          .join(' ', map { "%#02X" } @{$self->{prefix_bytes}})
+        "_fetch: Unknown instruction 0x%02X at 0x%04X with prefix bytes "
+          .join(' ', map { "0x%02X" } @{$self->{prefix_bytes}})
           ."\n", $byte, $pc, @{$self->{prefix_bytes}}
     )) if($bytes_to_fetch eq 'UNDEFINED');
 
@@ -479,11 +479,12 @@ sub _execute {
     # printf("_execute: 0x%02X (PC=0x%04X)\n", $instr, $self->register('PC')->get());
     die(sprintf(
         "_execute: No entry in dispatch table for instr "
-          .join(' ', map { "%#02X" } (@{$self->{prefix_bytes}}, $instr))
-          ." of known length, near %#04X\n",
+          .join(' ', map { "0x%02x" } (@{$self->{prefix_bytes}}, $instr))
+          ." of known length, near addr 0x%04x\n",
         @{$self->{prefix_bytes}}, $instr, $self->register('PC')->get()
     )) unless(
         exists($self->{instr_dispatch_table}->{$instr}) &&
+        ref($self->{instr_dispatch_table}->{$instr}) &&
         reftype($self->{instr_dispatch_table}->{$instr}) eq 'CODE'
     );
     $self->{instr_dispatch_table}->{$instr}->($self, @_);
