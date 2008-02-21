@@ -1,0 +1,59 @@
+# $Id: fuse2yaml.expected,v 1.1 2008/02/21 13:26:56 drhyde Exp $
+
+use strict;
+use warnings;
+use YAML::Tiny;
+use Data::Dumper;
+
+undef $/;
+
+open(my $fh, 'tests.expected');
+my @expected = split(/\n\n+/, <$fh>);
+close($fh);
+
+foreach (@expected) {
+    my $y = YAML::Tiny->new();
+    # not interested in intermediate states
+    $_ = join(" ", grep { /^[^\s]/ } split(/\n/, $_));
+    my @bits = split(/\s+/, $_);
+    my $testspec = {
+        name => shift(@bits),
+        AF   => hex('0x'.shift(@bits)),
+        BC   => hex('0x'.shift(@bits)),
+        DE   => hex('0x'.shift(@bits)),
+        HL   => hex('0x'.shift(@bits)),
+        AF_  => hex('0x'.shift(@bits)),
+        BC_  => hex('0x'.shift(@bits)),
+        DE_  => hex('0x'.shift(@bits)),
+        HL_  => hex('0x'.shift(@bits)),
+        IX   => hex('0x'.shift(@bits)),
+        IY   => hex('0x'.shift(@bits)),
+        SP   => hex('0x'.shift(@bits)),
+        PC   => hex('0x'.shift(@bits)),
+        I    => hex('0x'.shift(@bits)),
+        R    => hex('0x'.shift(@bits)),
+        IFF1 => hex('0x'.shift(@bits)),
+        IFF2 => hex('0x'.shift(@bits)),
+        halted => shift(@bits),
+        Ts     => shift(@bits),
+        1      => shift(@bits),
+        mem => {},
+    };
+    my $prev = -1;
+    my $thisseq;
+    foreach my $this (@bits) {
+        print "this: $this prev: $prev\n";
+        last if($prev eq $this && $this eq -1);
+        if($prev eq -1) {
+            print "  new sequence\n";
+            $thisseq = $testspec->{mem}->{hex('0x'.$this)} = [];
+        }
+        if($this ne -1 && $prev ne -1) {
+            print "  append byte $this\n";
+            push @{$thisseq}, hex('0x'.$this);
+        }
+        $prev = $this;
+    }
+    $y->[0] = $testspec;
+    $y->write($testspec->{name}.".expected.yml");
+}
