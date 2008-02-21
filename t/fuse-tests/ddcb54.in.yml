@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 50121
-AF_: 0
-BC: 30462
-BC_: 0
-DE: 61951
-DE_: 0
-HL: 16750
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 61397
-IY: 30070
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   61522:
     - 93
 name: ddcb54
+registers:
+  AF: 50121
+  AF_: 0
+  BC: 30462
+  BC_: 0
+  DE: 61951
+  DE_: 0
+  HL: 16750
+  HL_: 0
+  I: 0
+  IX: 61397
+  IY: 30070
+  PC: 0
+  R: 0
+  SP: 0

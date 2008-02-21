@@ -1,22 +1,23 @@
 ---
-1: 8
-AF: 33280
-AF_: 0
-BC: 30180
-BC_: 0
-DE: 41182
-DE_: 0
-HL: 53434
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 0
-IY: 0
-PC: 2
-R: 2
-SP: 0
-Ts: 0
+IM: 0
+Ts: 8
 halted: 0
 mem: {}
 name: cba1
+registers:
+  AF: 33280
+  AF_: 0
+  BC: 30180
+  BC_: 0
+  DE: 41182
+  DE_: 0
+  HL: 53434
+  HL_: 0
+  I: 0
+  IX: 0
+  IY: 0
+  PC: 2
+  R: 2
+  SP: 0

@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 24134
-AF_: 0
-BC: 47498
-BC_: 0
-DE: 47138
-DE_: 0
-HL: 1226
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 44571
-IY: 34608
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   44610:
     - 143
 name: ddcba6
+registers:
+  AF: 24134
+  AF_: 0
+  BC: 47498
+  BC_: 0
+  DE: 47138
+  DE_: 0
+  HL: 1226
+  HL_: 0
+  I: 0
+  IX: 44571
+  IY: 34608
+  PC: 0
+  R: 0
+  SP: 0

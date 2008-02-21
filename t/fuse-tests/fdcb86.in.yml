@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 5419
-AF_: 0
-BC: 36065
-BC_: 0
-DE: 33165
-DE_: 0
-HL: 16626
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 39802
-IY: 10832
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   10958:
     - 54
 name: fdcb86
+registers:
+  AF: 5419
+  AF_: 0
+  BC: 36065
+  BC_: 0
+  DE: 33165
+  DE_: 0
+  HL: 16626
+  HL_: 0
+  I: 0
+  IX: 39802
+  IY: 10832
+  PC: 0
+  R: 0
+  SP: 0

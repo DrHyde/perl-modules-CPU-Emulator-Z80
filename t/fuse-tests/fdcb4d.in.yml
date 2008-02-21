@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 40839
-AF_: 0
-BC: 27791
-BC_: 0
-DE: 13556
-DE_: 0
-HL: 23161
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 54220
-IY: 42864
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   42905:
     - 120
 name: fdcb4d
+registers:
+  AF: 40839
+  AF_: 0
+  BC: 27791
+  BC_: 0
+  DE: 13556
+  DE_: 0
+  HL: 23161
+  HL_: 0
+  I: 0
+  IX: 54220
+  IY: 42864
+  PC: 0
+  R: 0
+  SP: 0

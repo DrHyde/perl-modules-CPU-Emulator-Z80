@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 49689
-AF_: 0
-BC: 43627
-BC_: 0
-DE: 57279
-DE_: 0
-HL: 28432
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 47409
-IY: 54230
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   47455:
     - 117
 name: ddcbe1
+registers:
+  AF: 49689
+  AF_: 0
+  BC: 43627
+  BC_: 0
+  DE: 57279
+  DE_: 0
+  HL: 28432
+  HL_: 0
+  I: 0
+  IX: 47409
+  IY: 54230
+  PC: 0
+  R: 0
+  SP: 0

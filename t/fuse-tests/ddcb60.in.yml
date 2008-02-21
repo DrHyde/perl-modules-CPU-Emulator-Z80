@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 17102
-AF_: 0
-BC: 1811
-BC_: 0
-DE: 56464
-DE_: 0
-HL: 11401
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 12962
-IY: 50388
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   13063:
     - 46
 name: ddcb60
+registers:
+  AF: 17102
+  AF_: 0
+  BC: 1811
+  BC_: 0
+  DE: 56464
+  DE_: 0
+  HL: 11401
+  HL_: 0
+  I: 0
+  IX: 12962
+  IY: 50388
+  PC: 0
+  R: 0
+  SP: 0

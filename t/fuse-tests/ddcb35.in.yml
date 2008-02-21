@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 57009
-AF_: 0
-BC: 50940
-BC_: 0
-DE: 26989
-DE_: 0
-HL: 5389
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 60186
-IY: 18962
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   60115:
     - 143
 name: ddcb35
+registers:
+  AF: 57009
+  AF_: 0
+  BC: 50940
+  BC_: 0
+  DE: 26989
+  DE_: 0
+  HL: 5389
+  HL_: 0
+  I: 0
+  IX: 60186
+  IY: 18962
+  PC: 0
+  R: 0
+  SP: 0

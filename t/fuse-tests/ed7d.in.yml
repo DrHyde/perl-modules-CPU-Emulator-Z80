@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 60598
-AF_: 0
-BC: 1854
-BC_: 0
-DE: 56350
-DE_: 0
-HL: 14553
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 1
-IX: 0
-IY: 0
-PC: 0
-R: 0
-SP: 26352
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -26,3 +12,18 @@ mem:
     - 79
     - 251
 name: ed7d
+registers:
+  AF: 60598
+  AF_: 0
+  BC: 1854
+  BC_: 0
+  DE: 56350
+  DE_: 0
+  HL: 14553
+  HL_: 0
+  I: 0
+  IX: 0
+  IY: 0
+  PC: 0
+  R: 0
+  SP: 26352

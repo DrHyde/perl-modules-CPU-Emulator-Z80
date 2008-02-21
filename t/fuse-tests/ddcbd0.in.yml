@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 12920
-AF_: 0
-BC: 24852
-BC_: 0
-DE: 53853
-DE_: 0
-HL: 7416
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 44355
-IY: 39420
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   44482:
     - 81
 name: ddcbd0
+registers:
+  AF: 12920
+  AF_: 0
+  BC: 24852
+  BC_: 0
+  DE: 53853
+  DE_: 0
+  HL: 7416
+  HL_: 0
+  I: 0
+  IX: 44355
+  IY: 39420
+  PC: 0
+  R: 0
+  SP: 0

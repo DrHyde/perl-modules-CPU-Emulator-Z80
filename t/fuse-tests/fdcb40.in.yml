@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 21512
-AF_: 0
-BC: 11316
-BC_: 0
-DE: 26500
-DE_: 0
-HL: 45942
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 36857
-IY: 16789
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   16848:
     - 13
 name: fdcb40
+registers:
+  AF: 21512
+  AF_: 0
+  BC: 11316
+  BC_: 0
+  DE: 26500
+  DE_: 0
+  HL: 45942
+  HL_: 0
+  I: 0
+  IX: 36857
+  IY: 16789
+  PC: 0
+  R: 0
+  SP: 0

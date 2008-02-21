@@ -1,22 +1,23 @@
 ---
-1: 8
-AF: 51903
-AF_: 0
-BC: 65434
-BC_: 0
-DE: 47500
-DE_: 0
-HL: 43238
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 0
-IY: 0
-PC: 2
-R: 2
-SP: 65166
-Ts: 0
-halted: 1
+IM: 1
+Ts: 8
+halted: 0
 mem: {}
 name: ed76
+registers:
+  AF: 51903
+  AF_: 0
+  BC: 65434
+  BC_: 0
+  DE: 47500
+  DE_: 0
+  HL: 43238
+  HL_: 0
+  I: 0
+  IX: 0
+  IY: 0
+  PC: 2
+  R: 2
+  SP: 65166

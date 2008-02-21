@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 40448
-AF_: 0
-BC: 45880
-BC_: 0
-DE: 34668
-DE_: 0
-HL: 59572
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 0
-IY: 0
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -25,3 +11,18 @@ mem:
   59572:
     - 185
 name: cb1b
+registers:
+  AF: 40448
+  AF_: 0
+  BC: 45880
+  BC_: 0
+  DE: 34668
+  DE_: 0
+  HL: 59572
+  HL_: 0
+  I: 0
+  IX: 0
+  IY: 0
+  PC: 0
+  R: 0
+  SP: 0

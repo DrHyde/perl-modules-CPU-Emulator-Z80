@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 20540
-AF_: 0
-BC: 36350
-BC_: 0
-DE: 4121
-DE_: 0
-HL: 26488
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 63455
-IY: 38020
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   38084:
     - 158
 name: fdcb7e
+registers:
+  AF: 20540
+  AF_: 0
+  BC: 36350
+  BC_: 0
+  DE: 4121
+  DE_: 0
+  HL: 26488
+  HL_: 0
+  I: 0
+  IX: 63455
+  IY: 38020
+  PC: 0
+  R: 0
+  SP: 0

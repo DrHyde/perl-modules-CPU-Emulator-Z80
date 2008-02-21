@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 33223
-AF_: 0
-BC: 29151
-BC_: 0
-DE: 17877
-DE_: 0
-HL: 3239
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 25743
-IY: 16829
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   16808:
     - 97
 name: fdcb9e
+registers:
+  AF: 33223
+  AF_: 0
+  BC: 29151
+  BC_: 0
+  DE: 17877
+  DE_: 0
+  HL: 3239
+  HL_: 0
+  I: 0
+  IX: 25743
+  IY: 16829
+  PC: 0
+  R: 0
+  SP: 0

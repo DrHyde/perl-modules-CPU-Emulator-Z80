@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 64319
-AF_: 0
-BC: 33782
-BC_: 0
-DE: 8340
-DE_: 0
-HL: 13129
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 16080
-IY: 28430
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   16120:
     - 194
 name: ddcbfd
+registers:
+  AF: 64319
+  AF_: 0
+  BC: 33782
+  BC_: 0
+  DE: 8340
+  DE_: 0
+  HL: 13129
+  HL_: 0
+  I: 0
+  IX: 16080
+  IY: 28430
+  PC: 0
+  R: 0
+  SP: 0

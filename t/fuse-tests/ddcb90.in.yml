@@ -1,22 +1,8 @@
 ---
-1: 1
-AF: 49511
-AF_: 0
-BC: 15868
-BC_: 0
-DE: 17127
-DE_: 0
-HL: 40468
-HL_: 0
-I: 0
 IFF1: 0
 IFF2: 0
-IX: 46337
-IY: 34046
-PC: 0
-R: 0
-SP: 0
-Ts: 0
+IM: 0
+Ts: 1
 halted: 0
 mem:
   0:
@@ -27,3 +13,18 @@ mem:
   46341:
     - 70
 name: ddcb90
+registers:
+  AF: 49511
+  AF_: 0
+  BC: 15868
+  BC_: 0
+  DE: 17127
+  DE_: 0
+  HL: 40468
+  HL_: 0
+  I: 0
+  IX: 46337
+  IY: 34046
+  PC: 0
+  R: 0
+  SP: 0
