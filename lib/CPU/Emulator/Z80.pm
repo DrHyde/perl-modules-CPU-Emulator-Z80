@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.15 2008/02/21 20:02:31 drhyde Exp $
+# $Id: Z80.pm,v 1.16 2008/02/21 20:15:28 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -9,8 +9,8 @@ use vars qw($VERSION %INSTR_LENGTHS %INSTR_DISPATCH);
 
 $VERSION = '1.0';
 
-local $SIG{__DIE__} = sub {
-    die(__PACKAGE__.": $_[0]\n");
+$SIG{__WARN__} = sub {
+    warn(__PACKAGE__.": $_[0]\n");
 };
 
 use Scalar::Util qw(blessed reftype);
@@ -463,9 +463,9 @@ sub _fetch {
         if(ref($bytes_to_fetch) && reftype($bytes_to_fetch) eq 'CODE');
     
     die(sprintf(
-        "_fetch: Unknown instruction 0x%02X at 0x%04X with prefix bytes "
+        "_fetch: Unknown instruction 0x%02X at 0x%04X with prefix bytes ["
           .join(' ', map { "0x%02X" } @{$self->{prefix_bytes}})
-          ."\n", $byte, $pc, @{$self->{prefix_bytes}}
+          ."]\n", $byte, $pc, @{$self->{prefix_bytes}}
     )) if($bytes_to_fetch eq 'UNDEFINED');
 
     push @bytes, map { $self->memory()->peek($pc + $_) } (1 .. $bytes_to_fetch - 1);
@@ -477,17 +477,20 @@ sub _fetch {
 sub _execute {
     my($self, $instr) = (shift(), shift());
     # printf("_execute: 0x%02X (PC=0x%04X)\n", $instr, $self->register('PC')->get());
-    die(sprintf(
-        "_execute: No entry in dispatch table for instr "
-          .join(' ', map { "0x%02x" } (@{$self->{prefix_bytes}}, $instr))
-          ." of known length, near addr 0x%04x\n",
-        @{$self->{prefix_bytes}}, $instr, $self->register('PC')->get()
-    )) unless(
+    if(
         exists($self->{instr_dispatch_table}->{$instr}) &&
         ref($self->{instr_dispatch_table}->{$instr}) &&
         reftype($self->{instr_dispatch_table}->{$instr}) eq 'CODE'
-    );
-    $self->{instr_dispatch_table}->{$instr}->($self, @_);
+    ) {
+        $self->{instr_dispatch_table}->{$instr}->($self, @_);
+    } else {
+        warn(sprintf(
+            "_execute: No entry in dispatch table for instr "
+              .join(' ', map { "0x%02x" } (@{$self->{prefix_bytes}}, $instr))
+              ." of known length, near addr 0x%04x\n",
+            @{$self->{prefix_bytes}}, $instr, $self->register('PC')->get()
+        ));
+    }
 }
 
 sub _check_cond {
