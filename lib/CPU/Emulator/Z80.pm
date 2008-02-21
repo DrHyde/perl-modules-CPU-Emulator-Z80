@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.16 2008/02/21 20:15:28 drhyde Exp $
+# $Id: Z80.pm,v 1.17 2008/02/21 23:03:22 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -282,10 +282,9 @@ R:  0x%02X IX: 0x%04X IY: 0x%04X SP: 0x%04X PC: 0x%04X
 =head2 run
 
 Start the CPU running from whatever the Program Counter (PC) is set to.
-This will run until either a HALT instruction is hit, or you can tell it
-to run for a certain number of instructions by passing a number to the
-method.  Note that when this method returns, the PC is set to the address
-of the next instruction.
+This will by default run for ever.  However, it takes an optional
+named parameter (either 'instrs' or 'Ts') telling the CPU to run
+either that number of instructions or for that number of T-states.
 
 =cut
 
@@ -416,14 +415,18 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
           },
 );
 
-{ my $instrs_to_execute;
 sub run {
     my $self = shift;
-    if(@_) { $instrs_to_execute = shift(); }
-     else { $instrs_to_execute = -1; }
+    my($instrs_to_execute, $Ts_to_execute) = (-1, -1);
+    if(@_ == 2) {
+        $_[0] eq 'Ts'     ? $Ts_to_execute = $_[1] :
+        $_[0] eq 'instrs' ? $instrs_to_execute = $_[1]
+                          : die("Bad params to run method\n");
+    } elsif(@_) { die("Bad params to run method\n"); }
 
-    while($instrs_to_execute) {
+    while($instrs_to_execute && $Ts_to_execute) {
         $instrs_to_execute--;
+        $Ts_to_execute--;
         $self->{instr_length_table} = \%INSTR_LENGTHS;
         $self->{instr_dispatch_table} = \%INSTR_DISPATCH;
         $self->{prefix_bytes} = [];
@@ -432,7 +435,6 @@ sub run {
         delete $self->{instr_lengths_table};
         delete $self->{instr_dispatch_table};
     }
-}
 }
 
 # fetch all the bytes for an instruction and return them

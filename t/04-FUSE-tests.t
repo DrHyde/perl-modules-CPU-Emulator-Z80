@@ -1,3 +1,6 @@
+# $Id: 04-FUSE-tests.t,v 1.2 2008/02/21 23:03:22 drhyde Exp $
+# FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
+
 use strict;
 $^W = 1;
 
@@ -16,18 +19,22 @@ my $test = 0;
 foreach my $yamlfile (@tests) {
     $test++;
     my $y = YAML::Tiny->read("$yamlfile.in.yml");
-    my $cpu = CPU::Emulator::Z80->new();
+    my $cpu = CPU::Emulator::Z80->new(
+        memory => CPU::Emulator::Memory->new(
+            bytes => "\xDE\xAD\xBE\xEF" x (65536 / 4)
+        )
+    );
     foreach my $r (grep { $_ ne 'I' } keys %{$y->[0]->{registers}}) {
         $cpu->register($r)->set($y->[0]->{registers}->{$r});
     }
-    my $pokes = 0;
     foreach my $addr (keys %{$y->[0]->{mem}}) {
         foreach(@{$y->[0]->{mem}->{$addr}}) {
             $cpu->memory()->poke($addr++, $_);
-            $pokes++;
         }
     }
-    $cpu->run($pokes); # run however many values we poked
+
+    my $beforememory = $cpu->memory()->{contents}; # FIXME - internals
+    $cpu->run(Ts => $y->[0]->{Ts}); # execute this many T states
 
     $y = YAML::Tiny->read("$yamlfile.expected.yml");
     my $errors = "";
@@ -39,16 +46,20 @@ foreach my $yamlfile (@tests) {
               "#   but is    ".sprintf('0x%04X', $cpu->register($r)->get())."\n";
         }
     }
+
     foreach my $addr (keys %{$y->[0]->{mem}}) {
         foreach(@{$y->[0]->{mem}->{$addr}}) {
             if($cpu->memory()->peek($addr) != $_) {
                 $errors .=
                   "# Memory location ".sprintf('0x%04X', $addr)." differs\n".
                   "#   should be ".sprintf('0x%02X', $_)."\n".
-                  "#   but is    ".sprintf('0x%02X', $cpu->memory()->peek($addr))."\n";
+                  "#   but is    ".sprintf('0x%02X', $cpu->memory()->peek($addr)).
+                  (($cpu->memory()->peek($addr) == ord(substr($beforememory, $addr, 1))) ? ' (unchanged)' : '').
+                  "\n";
             }
+            $addr++;
         }
     }
-    print ''.($errors ? 'not ' : '')."ok $test $y->[0]->{name}\n";
+    print ''.($errors ? 'not ' : '')."ok $test - $y->[0]->{name}.in.yml\n";
     print $errors;
 }
