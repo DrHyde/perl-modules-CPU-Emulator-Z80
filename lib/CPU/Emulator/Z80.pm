@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.20 2008/02/22 02:03:18 drhyde Exp $
+# $Id: Z80.pm,v 1.21 2008/02/22 19:03:59 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -21,6 +21,7 @@ use Data::Dumper;
 use CPU::Emulator::Memory::Banked;
 use CPU::Emulator::Z80::Register8;
 use CPU::Emulator::Z80::Register8F;
+use CPU::Emulator::Z80::Register8R;
 use CPU::Emulator::Z80::Register16;
 use CPU::Emulator::Z80::ALU; # import add/subtract methods
 
@@ -139,6 +140,8 @@ sub new {
 
     bless $self->{hw_registers}->{$_}, 'CPU::Emulator::Z80::Register8F'
         foreach(qw(F F_));
+    bless $self->{hw_registers}->{R}, 'CPU::Emulator::Z80::Register8R';
+
 
     $self->{derived_registers}->{AF}  = $self->_derive_register16(qw(A F));
     $self->{derived_registers}->{AF_} = $self->_derive_register16(qw(A_ F_));
@@ -154,7 +157,7 @@ sub new {
     $self->{derived_registers}->{LIX} = $self->_derive_register8(qw(IX low));
     $self->{derived_registers}->{HIY} = $self->_derive_register8(qw(IY high));
     $self->{derived_registers}->{LIY} = $self->_derive_register8(qw(IY low));
-    
+
     $self->{registers}->{$_} = $self->{hw_registers}->{$_}
         foreach(keys %{$self->{hw_registers}});
     $self->{registers}->{$_} = $self->{derived_registers}->{$_}
@@ -312,28 +315,22 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
     (map { 0b00000001 | ($_ << 4 ) => 3 } (0 .. 3)), # LD rp[p], nn
     (map { 0b00001001 | ($_ << 4 ) => 1 } (0 .. 3)), # ADD HL, rp[p]
     # x=0, z=2
-    # LD (BC/DE), A; LD A, (BC/DE)
-    (map { 0b00000010 | ($_ << 3) => 1 } (0b000, 0b010, 0b001, 0b011)),
-    # LD (nn), HL/A, LD HL/A, (nn)
-    (map { 0b00000010 | ($_ << 3) => 3 } (0b100, 0b110, 0b101, 0b111)),
+    (map { 0b00000010 | ($_ << 3) => 1 } (0 .. 3)), # LD (BC/DE), A; LD A, (BC/DE)
+    (map { 0b00000010 | ($_ << 3) => 3 } (4 .. 7)), #  LD (nn), HL/A, LD HL/A, (nn)
     # x=0, z=3
-    # q=0: INC rp[p]
-    # q=1: DEC rp[p]
-    (map { 0b00000011 | ($_ << 3) => 1 } (0 .. 7)),
-    # x=0, z=4: INC r[y]
-    (map { 0b00000100 | ($_ << 3) => 1 } (0 .. 7)),
-    # x=0, z=5: DEC r[y]
-    (map { 0b00000101 | ($_ << 3) => 1 } (0 .. 7)),
-    # x=0, z=6: LD r[y], n
-    (map { 0b00000110 | ($_ << 3) => 2 } (0 .. 7)),
+    (map { 0b00000011 | ($_ << 3) => 1 } (0 .. 7)), # INC/DEC rp
+    # x=0, z=4
+    (map { 0b00000100 | ($_ << 3) => 1 } (0 .. 7)), # INC r[y]
+    # x=0, z=5
+    (map { 0b00000101 | ($_ << 3) => 1 } (0 .. 7)), # DEC r[y]
+    # x=0, z=6
+    (map { 0b00000110 | ($_ << 3) => 2 } (0 .. 7)), # LD r[y], n
     # x=0, z=7: RLCA, RRCA, RLA, RRA, DAA, CPL, SCF, CCF
-    (map { 0b00000111 | ($_ << 3) => 2 } (0 .. 7)),
-
-    # x=1: LD r[y], r[z] (exception: y=6, z=6 is HALT
-    (map { 0b01000000 + $_ => 1 } (0 .. 0b111111)),
-
-    # x=2: alu[y] on A and r[z]
-    (map { 0b10000000 + $_ => 1 } (0 .. 0b111111)),
+    (map { 0b00000111 | ($_ << 3) => 1 } (0 .. 7)),
+    # x=1
+    (map { 0b01000000 + $_ => 1 } (0 .. 63)), # LD r[y], r[z], HALT
+    # x=2
+    (map { 0b10000000 + $_ => 1 } (0 .. 63)), # alu[y] on A and r[z]
 
 
     0xC3 => 3, # JP
@@ -381,14 +378,16 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
     (map { my $p = $_; 0b00000001 | ($p << 4 ) => sub {
         _LD_r16_imm(shift(), $TABLE_RP[$p], @_) # LD rp[p], nn
     } } (0 .. 3)),
-    (map { 0b00001001 | ($_ << 4 ) => 1 } (0 .. 3)), # ADD HL, rp[p]
+    (map { my $p = $_; 0b00001001 | ($_ << 4 ) => sub {
+        _ADD_r16_r16(shift(), 'HL', $TABLE_RP[$p]) # ADD HL, rp[p]
+    } } (0 .. 3)),
     0b00000010 => sub { _LD_indr16_r8($_[0], 'BC', 'A'); }, # LD (BC), A
-    0b00010010 => sub { _LD_indr16_r8($_[0], 'DE', 'A'); }, # LD (DE), A
     0b00001010 => sub { _LD_r8_indr16($_[0], 'A', 'BC'); }, # LD A, (BC)
+    0b00010010 => sub { _LD_indr16_r8($_[0], 'DE', 'A'); }, # LD (DE), A
     0b00011010 => sub { _LD_r8_indr16($_[0], 'A', 'DE'); }, # LD A, (DE)
     0b00100010 => sub { _LD_ind_r16(shift(), 'HL', @_); }, # LD (nn), HL
-    0b00110010 => sub { _LD_ind_r8(shift(), 'A', @_); }, # LD (nn), A
     0b00101010 => sub { _LD_r16_ind(shift(), 'HL', @_); }, #LD HL, (nn)
+    0b00110010 => sub { _LD_ind_r8(shift(), 'A', @_); }, # LD (nn), A
     0b00111010 => sub { _LD_r8_ind(shift(), 'A', @_); }, #LD A, (nn)
     (map {
         my($p, $q) = ($_ & 0b110 >> 1, $_ & 0b1);
@@ -403,10 +402,18 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
     (map { my $y = $_; 0b00000101 | ($_ << 3) => sub {
         _DEC($_[0], $TABLE_R[$y]) # DEC r[y]
     } } (0 .. 7)),
-    # LD r[y], n
-    (map { 0b00000110 | ($_ << 3) => 2 } (0 .. 7)),
-    # RLCA, RRCA, RLA, RRA, DAA, CPL, SCF, CCF
-    (map { 0b00000111 | ($_ << 3) => 2 } (0 .. 7)),
+    (map { my $y = $_; 0b00000110 | ($_ << 3) => sub {
+        _LD_r8_imm(shift(), $TABLE_R[$y], @_) # LD r[y], n
+    } } (0 .. 7)),
+    0b00000111 => \&_RLCA,
+    0b00001111 => \&_RRCA,
+    0b00010111 => \&_RLA,
+    0b00011111 => \&_RRA,
+    0b00100111 => \&_DAA,
+    0b00101111 => \&_CPL,
+    0b00110111 => \&_SCF,
+    0b00111111 => \&_CCF,
+
     # LD r[y], r[z] (exception: y=6, z=6 is HALT
     (map { 0b01000000 + $_ => 1 } (0 .. 0b111111)),
     # alu[y] on A and r[z]
@@ -514,6 +521,11 @@ sub _check_cond {
     die("_check_cond NYI\n");
 }
 
+sub _ADD_r16_r16 {
+die("ADD_r16_R16 NYI");
+    my($self, $r1, $r2) = @_;
+
+}
 sub _DEC {
     # flag-twiddling is dealt with in the register's dec() method
     my($self, $r) = @_;
@@ -522,7 +534,7 @@ sub _DEC {
 sub _EX_AF_AF {
     shift()->_swap_regs(qw(AF AF_));
 }
-sub _HALT { while(sleep(10)) {} }
+sub _HALT { shift()->register('PC')->dec(); sleep(1) }
 sub _INC {
     # flag-twiddling is dealt with in the register's dec() method
     my($self, $r) = @_;
@@ -553,6 +565,13 @@ sub _LD_r16_imm {
     # print Dumper(\@_);
     shift()->register(shift())->set(shift() + 256 * shift());
 }
+sub _LD_r8_imm {
+    # self, register, data
+    my($self, $r8, $byte) = @_;
+    $r8 eq '(HL)'
+        ? $self->memory()->poke($self->register('HL'), $byte)
+        : $self->register($r8)->set($byte);
+}
 sub _LD_r16_ind {
     my($self, $r16, @bytes) = @_;
     $self->register($r16)->set($self->memory()->peek16($bytes[0] + 256 * $bytes[1]));
@@ -566,6 +585,23 @@ sub _LD_r8_ind {
     $self->register($r8)->set($self->memory()->peek($bytes[0] + 256 * $bytes[1]));
 }
 sub _NOP { }
+sub _RLCA {
+    my $self = shift;
+    $self->register('A')->set(
+        (($self->register('A')->get() & 0b01111111) << 1) |
+        (($self->register('A')->get() & 0b10000000) >> 7)
+    );
+    $self->register('F')->setC($self->register('A')->get() & 1);
+    $self->register('F')->resetH();
+    $self->register('F')->resetN();
+}
+sub _RRCA { }
+sub _RLA { }
+sub _RRA { }
+sub _DAA { }
+sub _CPL { }
+sub _SCF { }
+sub _CCF { }
 
 sub _swap_regs {
     my($self, $r1, $r2) = @_;
