@@ -1,4 +1,4 @@
-# $Id: Register8R.pm,v 1.1 2008/02/22 02:03:18 drhyde Exp $
+# $Id: Register8R.pm,v 1.2 2008/02/22 02:08:08 drhyde Exp $
 
 package CPU::Emulator::Z80::Register8R;
 
@@ -30,7 +30,7 @@ register only.
 
 =cut
 
-sub inc
+sub inc {
     my $self = shift;
     my $r = $self->get();
     $self->set(($r & 0b10000000) | (($r + 1) & 0b01111111));

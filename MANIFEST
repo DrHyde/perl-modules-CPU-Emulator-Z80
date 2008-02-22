@@ -2657,3 +2657,4 @@ t/fuse-tests/tests.expected
 t/fuse-tests/tests.in
 t/04-FUSE-tests.t
 lib/CPU/Emulator/Z80/Register8R.pm
+t/05-register8r-methods.t
