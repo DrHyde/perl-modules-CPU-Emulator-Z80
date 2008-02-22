@@ -1,4 +1,4 @@
-# $Id: Register8.pm,v 1.2 2008/02/19 21:19:29 drhyde Exp $
+# $Id: Register8.pm,v 1.3 2008/02/22 00:57:14 drhyde Exp $
 
 package CPU::Emulator::Z80::Register8;
 
@@ -23,8 +23,28 @@ This class implements an 8-bit register for a Z80.
 
 =head2 new
 
-Returns an object.  Takes either a single argument, the value to
-initialise the register to, or two named parameters:
+Returns an object.  Takes two or three named parameters:
+
+=over
+
+=item cpu
+
+mandatory, a reference to the CPU this register lives in, mostly so
+that operations on the register can get at the flags register.
+
+=back
+
+and either of:
+
+=over
+
+=item value
+
+The value to initialise the register to;
+
+=back
+
+or
 
 =over
 
@@ -42,10 +62,7 @@ of any use.
 
 sub new {
     my $class = shift;
-    my $self = {};
-    if(@_ == 4) { $self = { @_ }; }
-     else { $self->{value} = shift; }
-    $self->{bits} = 8;
+    my $self = {@_, bits => 8};
     bless $self, $class;
 }
 
@@ -73,6 +90,32 @@ sub set {
     if(exists($self->{set})) {
         return $self->{set}->(shift);
     } else { $self->{value} = shift() & 0xFF }
+}
+
+=head2 inc
+
+Increment the register and set flags.
+
+=cut
+
+sub inc {
+    my $self = shift;
+    my $flags = $self->cpu()->register('F');
+    # FIXME - diddle flags
+    $self->set($self->get() + 1);
+}
+
+=head2 dec
+
+Decrement the register and set flags.
+
+=cut
+
+sub dec {
+    my $self = shift;
+    my $flags = $self->cpu()->register('F');
+    # FIXME - diddle flags
+    $self->set($self->get() - 1);
 }
 
 =head1 BUGS/WARNINGS/LIMITATIONS

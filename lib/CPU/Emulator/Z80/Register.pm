@@ -1,4 +1,4 @@
-# $Id: Register.pm,v 1.3 2008/02/19 23:51:08 drhyde Exp $
+# $Id: Register.pm,v 1.4 2008/02/22 00:57:14 drhyde Exp $
 
 package CPU::Emulator::Z80::Register;
 
@@ -20,18 +20,7 @@ registers of any size.
 
 =head1 METHODS
 
-=head2 get, set
-
-These do nothing in the base class.  They must be over-ridden in
-sub-classes such
-that setting stores a value, truncated to the right length, and
-getting retrieves a value, truncated to the right length.
-
-The set() method must accept -ve values and store them in
-2s-complement.  Its behaviour is undefined if the user is foolish
-enough to store too large a -ve value.
-
-The get() method must return the value assuming it to be unsigned.
+The following methods exist in the base class:
 
 =head2 getsigned
 
@@ -51,6 +40,56 @@ sub getsigned {
     return -1 * (($value ^ (2 ** $self->{bits} - 1)) + 1);
 }
 
+=head2 cpu
+
+Return a reference to the CPU this object lives in.
+
+=cut
+
+sub cpu { shift()->{cpu}; }
+
+=head2 inc
+
+Increment the register.  But note that if incrementing means you
+need to do anything else, such as set flags, you will need to
+override this.
+
+=cut
+
+sub inc {
+    my $self = shift();
+    $self->set($self->get() + 1);
+}
+
+=head2 dec
+
+Decrement the register, again without bothering with flags and
+stuff so override if necessary.
+
+=cut
+
+sub dec {
+    my $self = shift;
+    $self->set($self->get() - 1);
+}
+
+=pod
+
+and the following methods need to be defined in all sub-classes:
+
+=head2 get, set
+
+Must be over-ridden in
+sub-classes such
+that setting stores a value, truncated to the right length, and
+getting retrieves a value, truncated to the right length.
+
+The set() method must accept -ve values and store them in
+2s-complement.  Its behaviour is undefined if the user is foolish
+enough to store too large a -ve value.
+
+The get() method must return the value assuming it to be unsigned.
+
 =head1 FIELDS
 
 All subclasses must have the following fields:
@@ -58,6 +97,11 @@ All subclasses must have the following fields:
 =head2 bits
 
 The number of bits in the register
+
+=head2 cpu
+
+A reference to the CPU this register resides in - this is so that
+mathemagical operators can get at the flags register.
 
 =head1 AUTHOR, LICENCE and COPYRIGHT
 

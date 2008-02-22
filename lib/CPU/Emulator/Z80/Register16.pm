@@ -1,4 +1,4 @@
-# $Id: Register16.pm,v 1.2 2008/02/19 21:19:29 drhyde Exp $
+# $Id: Register16.pm,v 1.3 2008/02/22 00:57:14 drhyde Exp $
 
 package CPU::Emulator::Z80::Register16;
 
@@ -23,8 +23,28 @@ This class implements a 16-bit register for a Z80.
 
 =head2 new
 
-Returns an object.  Takes either a single argument, the value to
-initialise the register to, or two named parameters:
+Returns an object.  Takes two or three named parameters:
+
+=over
+
+=item cpu
+
+mandatory, a reference to the CPU this register lives in, mostly so
+that operations on the register can get at the flags register.
+
+=back
+
+and either of:
+
+=over
+
+=item value
+
+The value to initialise the register to;
+
+=back
+
+or
 
 =over
 
@@ -42,9 +62,7 @@ of any use.
 
 sub new {
     my $class = shift;
-    my $self = {};
-    if(@_ == 4) { $self = { @_ }; }
-     else { $self->{value} = shift; }
+    my $self = {@_, bits => 16};
     $self->{bits} = 16;
     bless $self, $class;
 }
@@ -74,6 +92,10 @@ sub set {
         return $self->{set}->(shift);
     } else { $self->{value} = shift() & 0xFFFF }
 }
+
+=head2 inc, dec
+
+These use the implementation from the parent class
 
 =head1 BUGS/WARNINGS/LIMITATIONS
 

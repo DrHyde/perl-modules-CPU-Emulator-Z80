@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.18 2008/02/22 00:23:01 drhyde Exp $
+# $Id: Z80.pm,v 1.19 2008/02/22 00:57:14 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -125,14 +125,17 @@ sub new {
         derived_registers => Tie::Hash::Vivify->new(sub { confess("No auto-vivifying derived_registers!\n".Dumper(\@_)) }),
     }, $class;
 
-    $self->{hw_registers}->{$_} = CPU::Emulator::Z80::Register8->new($args{"init_$_"})
-        foreach(@REGISTERS8);
+    $self->{hw_registers}->{$_} = CPU::Emulator::Z80::Register8->new(
+        cpu => $self, value => $args{"init_$_"}
+    ) foreach(@REGISTERS8);
 
-    $self->{hw_registers}->{$_} = CPU::Emulator::Z80::Register16->new($args{"init_$_"})
-        foreach(@REGISTERS16);
+    $self->{hw_registers}->{$_} = CPU::Emulator::Z80::Register16->new(
+        cpu => $self, value => $args{"init_$_"}
+    ) foreach(@REGISTERS16);
 
-    $self->{hw_registers}->{$_.'_'} = blessed($self->{hw_registers}->{$_})->new($args{"init_${_}_"})
-        foreach(@ALTREGISTERS);
+    $self->{hw_registers}->{$_.'_'} = blessed($self->{hw_registers}->{$_})->new(
+        cpu => $self, value => $args{"init_$_"}
+    ) foreach(@ALTREGISTERS);
 
     bless $self->{hw_registers}->{$_}, 'CPU::Emulator::Z80::Register8F'
         foreach(qw(F F_));
@@ -172,7 +175,8 @@ sub _derive_register16 {
                    my $value = shift;
                    $self->register($high)->set($value >>8);
                    $self->register($low)->set($value & 0xFF);
-               }
+               },
+        cpu => $self
     );
 }
 # create an 8-bit pseudo-register from a 16-bit register
@@ -193,7 +197,8 @@ sub _derive_register8 {
                              ($value << 8)
                            : ($self->register($pair)->get() & 0xFF00) | $value
                    );
-               }
+               },
+        cpu => $self
     );
 }
 
@@ -388,15 +393,15 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
     (map {
         my($p, $q) = ($_ & 0b110 >> 1, $_ & 0b1);
         0b00000011 | ($_ << 3) => sub {
-            $q ? _DEC_r16($_[0], $TABLE_RP[$p]) # DEC rp[p]
-               : _INC_r16($_[0], $TABLE_RP[$p]) # INC rp[p]
+            $q ? _DEC($_[0], $TABLE_RP[$p]) # DEC rp[p]
+               : _INC($_[0], $TABLE_RP[$p]) # INC rp[p]
         }
     } (0 .. 7)),
     (map { my $y = $_; 0b00000100 | ($_ << 3) => sub {
-        _INC_r8($_[0], $TABLE_R[$y]) # INC r[y]
+        _INC($_[0], $TABLE_R[$y]) # INC r[y]
     } } (0 .. 7)),
     (map { my $y = $_; 0b00000101 | ($_ << 3) => sub {
-        _DEC_r8($_[0], $TABLE_R[$y]) # DEC r[y]
+        _DEC($_[0], $TABLE_R[$y]) # DEC r[y]
     } } (0 .. 7)),
     # LD r[y], n
     (map { 0b00000110 | ($_ << 3) => 2 } (0 .. 7)),
@@ -513,29 +518,19 @@ sub _check_cond {
     die("_check_cond NYI\n");
 }
 
-sub _DEC_r16 {
-    # Zaks says this doesn't affect flags
-    my($self, $r16) = @_;
-    $self->register($r16)->set($self->register($r16)->get() - 1);
-}
-sub _DEC_r8 {
-    # FIXME - flags
-    my($self, $r8) = @_;
-    $self->register($r8)->set($self->register($r8)->get() - 1);
+sub _DEC {
+    # flag-twiddling is dealt with in the register's dec() method
+    my($self, $r) = @_;
+    $self->register($r)->dec()
 }
 sub _EX_AF_AF {
     shift()->_swap_regs(qw(AF AF_));
 }
 sub _HALT { while(sleep(10)) {} }
-sub _INC_r16 {
-    # Zaks says this doesn't affect flags
-    my($self, $r16) = @_;
-    $self->register($r16)->set($self->register($r16)->get() + 1);
-}
-sub _INC_r8 {
-    # FIXME - flags
-    my($self, $r8) = @_;
-    $self->register($r8)->set($self->register($r8)->get() + 1);
+sub _INC {
+    # flag-twiddling is dealt with in the register's dec() method
+    my($self, $r) = @_;
+    $self->register($r)->inc();
 }
 sub _JR_unconditional {
     my $self = shift;
