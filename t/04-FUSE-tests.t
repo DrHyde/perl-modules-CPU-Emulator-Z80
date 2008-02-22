@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.2 2008/02/21 23:03:22 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.3 2008/02/22 02:31:29 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -42,8 +42,10 @@ foreach my $yamlfile (@tests) {
         if($cpu->register($r)->get() != $y->[0]->{registers}->{$r}) {
             $errors .=
               "# Register $r differs.\n".
-              "#   should be ".sprintf('0x%04X', $y->[0]->{registers}->{$r})."\n".
-              "#   but is    ".sprintf('0x%04X', $cpu->register($r)->get())."\n";
+              "#   should be ".sprintf('0x%04X', $y->[0]->{registers}->{$r}).
+                  (($r eq 'AF') ? sprintf(" flags: 0b%08b\n", $y->[0]->{registers}->{$r} & 0xFF) : "\n").
+              "#   but is    ".sprintf('0x%04X', $cpu->register($r)->get()).
+                  (($r eq 'AF') ? sprintf(" flags: 0b%08b\n", $cpu->register('F')->get()) : "\n");
         }
     }
 

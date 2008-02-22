@@ -1,4 +1,4 @@
-# $Id: Register8.pm,v 1.3 2008/02/22 00:57:14 drhyde Exp $
+# $Id: Register8.pm,v 1.4 2008/02/22 02:31:29 drhyde Exp $
 
 package CPU::Emulator::Z80::Register8;
 
@@ -99,10 +99,19 @@ Increment the register and set flags.
 =cut
 
 sub inc {
+    # should this use ADD in parent?
     my $self = shift;
     my $flags = $self->cpu()->register('F');
     # FIXME - diddle flags
+    # N always reset
+    # C left alone
+    # 3/5 ???
+    # S, Z, H, P/V diddled
     $self->set($self->get() + 1);
+    $flags->setZ($self->get() == 0);         # result 0?
+    $flags->resetN();                        # always reset
+    $flags->setS($self->get() & 0b10000000); # sign bit set?
+    $flags->setP($self->get() == 0);         # sign changed
 }
 
 =head2 dec
