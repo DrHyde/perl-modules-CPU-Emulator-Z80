@@ -5,7 +5,6 @@ Makefile.PL
 lib/CPU/Emulator/Z80.pm
 bin/z80masm
 TODO
-my-first-program
 lib/CPU/Emulator/Z80/Register.pm
 lib/CPU/Emulator/Z80/Register16.pm
 lib/CPU/Emulator/Z80/Register8.pm
