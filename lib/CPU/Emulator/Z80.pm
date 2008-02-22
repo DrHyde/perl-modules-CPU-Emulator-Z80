@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.17 2008/02/21 23:03:22 drhyde Exp $
+# $Id: Z80.pm,v 1.18 2008/02/22 00:23:01 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -369,22 +369,35 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
     0b00010000 => \&_DJNZ,
     0b00011000 => \&_JR_unconditonal,
     (map { ($_ << 3) => sub {
-        _check_cond($_[0], TABLE_CC()->[$_ - 4]) &&
+        my $c = $_ - 4;
+        _check_cond($_[0], $TABLE_CC[$c]) &&
         _JR_unconditonal(@_);
     } } (4 .. 7)),
-    (map { 0b00000001 | ($_ << 4 ) => 3 } (0 .. 3)), # LD rp[p], nn
+    (map { my $p = $_; 0b00000001 | ($p << 4 ) => sub {
+        _LD_r16_imm(shift(), $TABLE_RP[$p], @_) # LD rp[p], nn
+    } } (0 .. 3)),
     (map { 0b00001001 | ($_ << 4 ) => 1 } (0 .. 3)), # ADD HL, rp[p]
-    # LD (BC/DE), A; LD A, (BC/DE)
-    (map { 0b00000010 | ($_ << 3) => 1 } (0b000, 0b010, 0b001, 0b011)),
-    # LD (nn), HL/A, LD HL/A, (nn)
-    (map { 0b00000010 | ($_ << 3) => 3 } (0b100, 0b110, 0b101, 0b111)),
-    # q=0: INC rp[p]
-    # q=1: DEC rp[p]
-    (map { 0b00000011 | ($_ << 3) => 1 } (0 .. 7)),
-    # INC r[y]
-    (map { 0b00000100 | ($_ << 3) => 1 } (0 .. 7)),
-    # DEC r[y]
-    (map { 0b00000101 | ($_ << 3) => 1 } (0 .. 7)),
+    0b00000010 => sub { _LD_indr16_r8($_[0], 'BC', 'A'); }, # LD (BC), A
+    0b00010010 => sub { _LD_indr16_r8($_[0], 'DE', 'A'); }, # LD (DE), A
+    0b00001010 => sub { _LD_r8_indr16($_[0], 'A', 'BC'); }, # LD A, (BC)
+    0b00011010 => sub { _LD_r8_indr16($_[0], 'A', 'DE'); }, # LD A, (DE)
+    0b00100010 => sub { _LD_ind_r16(shift(), 'HL', @_); }, # LD (nn), HL
+    0b00110010 => sub { _LD_ind_r8(shift(), 'A', @_); }, # LD (nn), A
+    0b00101010 => sub { _LD_r16_ind(shift(), 'HL', @_); }, #LD HL, (nn)
+    0b00111010 => sub { _LD_r8_ind(shift(), 'A', @_); }, #LD A, (nn)
+    (map {
+        my($p, $q) = ($_ & 0b110 >> 1, $_ & 0b1);
+        0b00000011 | ($_ << 3) => sub {
+            $q ? _DEC_r16($_[0], $TABLE_RP[$p]) # DEC rp[p]
+               : _INC_r16($_[0], $TABLE_RP[$p]) # INC rp[p]
+        }
+    } (0 .. 7)),
+    (map { my $y = $_; 0b00000100 | ($_ << 3) => sub {
+        _INC_r8($_[0], $TABLE_R[$y]) # INC r[y]
+    } } (0 .. 7)),
+    (map { my $y = $_; 0b00000101 | ($_ << 3) => sub {
+        _DEC_r8($_[0], $TABLE_R[$y]) # DEC r[y]
+    } } (0 .. 7)),
     # LD r[y], n
     (map { 0b00000110 | ($_ << 3) => 2 } (0 .. 7)),
     # RLCA, RRCA, RLA, RRA, DAA, CPL, SCF, CCF
@@ -431,9 +444,9 @@ sub run {
         $self->{instr_dispatch_table} = \%INSTR_DISPATCH;
         $self->{prefix_bytes} = [];
         $self->_execute($self->_fetch());
-        delete $self->{prefix_bytes};
         delete $self->{instr_lengths_table};
         delete $self->{instr_dispatch_table};
+        delete $self->{prefix_bytes};
     }
 }
 
@@ -499,8 +512,31 @@ sub _check_cond {
     my($self, $cond) = @_;
     die("_check_cond NYI\n");
 }
-sub _NOP { }
+
+sub _DEC_r16 {
+    # Zaks says this doesn't affect flags
+    my($self, $r16) = @_;
+    $self->register($r16)->set($self->register($r16)->get() - 1);
+}
+sub _DEC_r8 {
+    # FIXME - flags
+    my($self, $r8) = @_;
+    $self->register($r8)->set($self->register($r8)->get() - 1);
+}
+sub _EX_AF_AF {
+    shift()->_swap_regs(qw(AF AF_));
+}
 sub _HALT { while(sleep(10)) {} }
+sub _INC_r16 {
+    # Zaks says this doesn't affect flags
+    my($self, $r16) = @_;
+    $self->register($r16)->set($self->register($r16)->get() + 1);
+}
+sub _INC_r8 {
+    # FIXME - flags
+    my($self, $r8) = @_;
+    $self->register($r8)->set($self->register($r8)->get() + 1);
+}
 sub _JR_unconditional {
     my $self = shift;
     die("_JR_unconditional NYI\n");
@@ -509,10 +545,37 @@ sub _JP_unconditional {
     my $self = shift;
     $self->register('PC')->set(shift() + 256 * shift());
 }
-
-sub _EX_AF_AF {
-    shift()->_swap_regs(qw(AF AF_));
+sub _LD_ind_r16 {
+    my($self, $r16, @bytes) = @_;
+    $self->memory()->poke16($bytes[0] + 256 * $bytes[1], $self->register($r16)->get())
 }
+sub _LD_ind_r8 {
+    my($self, $r8, @bytes) = @_;
+    $self->memory()->poke($bytes[0] + 256 * $bytes[1], $self->register($r8)->get())
+}
+sub _LD_indr16_r8 {
+    my($self, $r16, $r8) = @_;
+    $self->memory()->poke($self->register($r16)->get(), $self->register($r8)->get());
+}
+sub _LD_r16_imm {
+    # self, register, lo, hi
+    # print Dumper(\@_);
+    shift()->register(shift())->set(shift() + 256 * shift());
+}
+sub _LD_r16_ind {
+    my($self, $r16, @bytes) = @_;
+    $self->register($r16)->set($self->memory()->peek16($bytes[0] + 256 * $bytes[1]));
+}
+sub _LD_r8_indr16 {
+    my($self, $r8, $r16) = @_;
+    $self->register($r8)->set($self->memory()->peek($self->register($r16)->get()));
+}
+sub _LD_r8_ind {
+    my($self, $r8, @bytes) = @_;
+    $self->register($r8)->set($self->memory()->peek($bytes[0] + 256 * $bytes[1]));
+}
+sub _NOP { }
+
 sub _swap_regs {
     my($self, $r1, $r2) = @_;
     my $temp = $self->register($r1)->get();
