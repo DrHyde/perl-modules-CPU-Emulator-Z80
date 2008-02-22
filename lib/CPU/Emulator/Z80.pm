@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.19 2008/02/22 00:57:14 drhyde Exp $
+# $Id: Z80.pm,v 1.20 2008/02/22 02:03:18 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -461,11 +461,7 @@ sub _fetch {
     my @bytes = ();
     my $pc = $self->register('PC')->get();
     
-    # R register increments weirdly ...
-    my $r = $self->register('R')->get();
-    $self->register('R')->set(
-        ($r & 0b10000000) | (($r + 1) & 0b01111111)
-    );
+    $self->register('R')->inc();
     my $byte = $self->memory()->peek($pc);
     push @bytes, $byte;
 

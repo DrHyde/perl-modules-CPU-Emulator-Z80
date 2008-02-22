@@ -1,9 +1,14 @@
-# $Id: ALU.pm,v 1.3 2008/02/19 17:28:51 drhyde Exp $
+# $Id: ALU.pm,v 1.4 2008/02/22 02:03:18 drhyde Exp $
 
 package CPU::Emulator::Z80::ALU;
 
 use strict;
 use warnings;
+use vars qw(@EXPORT);
+
+use base qw(Exporter);
+
+@EXPORT = qw(_add8);
 
 =head1 NAME
 
@@ -18,15 +23,15 @@ provides both 8- and 16-bit versions of all its methods.
 =head1 METHODS
 
 All methods are available in 8- and 16-bit versions by appending
-the appropriate number:
+the appropriate number, and all are exported:
 
-=head2 add8/add16
+=head2 _add8/_add16
 
 Takes two 8/16-bit values and returns their 8/16-bit sum.
 
 =cut
 
-sub add8 {
+sub _add8 {
     my($self, $op1, $op2) = @_;
     my $lownybble = ($op1 & 0x0F) + ($op2 & 0x0F);
     $self->register('F')->setH($lownybble & 0x10); # half-carry
