@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.22 2008/02/22 20:29:20 drhyde Exp $
+# $Id: Z80.pm,v 1.23 2008/02/22 20:57:31 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -26,7 +26,8 @@ use CPU::Emulator::Z80::Register16;
 use CPU::Emulator::Z80::ALU; # import add/subtract methods
 
 my @REGISTERS16 = qw(PC SP IX IY HL);          # 16 bit registers
-my @REGISTERS8  = qw(A B C D E F R);           # 8 bit registers
+# NB W and Z aren't programmer-accesible, for internal use only!
+my @REGISTERS8  = qw(A B C D E F R W Z);       # 8 bit registers
 my @ALTREGISTERS = qw(A B C D E F HL);         # those which have alt.s
 my @REGISTERS   = (@REGISTERS16, @REGISTERS8); # all registers
 
@@ -312,8 +313,8 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
     (map { $_ => 'UNDEFINED' } (0 .. 255)),
     # un-prefixed instructions
     # x=0, z=0
-    (map { ($_ << 3) => 1 } (0, 1, 2)), # NOP; EX AF, AF'; DJNZ
-    (map { ($_ << 3) => 2 } (3 .. 7)), # JR X, d
+    (map { ($_ << 3) => 1 } (0, 1)), # NOP; EX AF, AF'
+    (map { ($_ << 3) => 2 } (2 .. 7)), # DJNZ d; JR d; JR X, d
     # x=0, z=1
     (map { 0b00000001 | ($_ << 4 ) => 3 } (0 .. 3)), # LD rp[p], nn
     (map { 0b00001001 | ($_ << 4 ) => 1 } (0 .. 3)), # ADD HL, rp[p]
@@ -533,6 +534,21 @@ sub _DEC {
     my($self, $r) = @_;
     $self->register($r)->dec()
 }
+sub _DJNZ {
+    my($self, $offset) = @_;
+
+    # my $f = $self->register('F')->get(); # preserve flags;
+    _LD_r8_r8($self, 'W', 'F');
+
+    $self->register('B')->dec();         # decrement B and ...
+    if($self->register('B')->get()) {    # jump if not zero
+        _LD_r8_imm($self, 'Z', $offset);
+        $offset = $self->register('Z')->getsigned();
+        $self->register('PC')->set($self->register('PC')->get() + $offset);
+    }
+    # $self->register('F')->set($f);       # restore flags
+    _LD_r8_r8($self, 'F', 'W');
+}
 sub _EX_AF_AF {
     shift()->_swap_regs(qw(AF AF_));
 }
@@ -586,6 +602,14 @@ sub _LD_r8_ind {
     my($self, $r8, @bytes) = @_;
     $self->register($r8)->set($self->memory()->peek($bytes[0] + 256 * $bytes[1]));
 }
+sub _LD_r16_r16 {
+    my($self, $r1, $r2) = @_;
+    $self->register($r1)->set($self->register($r2)->get());
+}
+sub _LD_r8_r8 {
+    my($self, $r1, $r2) = @_;
+    $self->register($r1)->set($self->register($r2)->get());
+}
 sub _NOP { }
 sub _RLCA {
     my $self = shift;
@@ -593,11 +617,24 @@ sub _RLCA {
         (($self->register('A')->get() & 0b01111111) << 1) |
         (($self->register('A')->get() & 0b10000000) >> 7)
     );
-    $self->register('F')->setC($self->register('A')->get() & 1);
     $self->register('F')->resetH();
     $self->register('F')->resetN();
+    $self->register('F')->set5($self->register('A')->get() & 0b100000);
+    $self->register('F')->set3($self->register('A')->get() & 0b1000);
+    $self->register('F')->setC($self->register('A')->get() & 1);
 }
-sub _RRCA { }
+sub _RRCA {
+    my $self = shift;
+    $self->register('A')->set(
+        (($self->register('A')->get() & 0b11111110) >> 1) |
+        (($self->register('A')->get() & 1) << 7)
+    );
+    $self->register('F')->resetH();
+    $self->register('F')->resetN();
+    $self->register('F')->set5($self->register('A')->get() & 0b100000);
+    $self->register('F')->set3($self->register('A')->get() & 0b1000);
+    $self->register('F')->setC($self->register('A')->get() & 0x80);
+}
 sub _RLA { }
 sub _RRA { }
 sub _DAA { }
