@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.21 2008/02/22 19:03:59 drhyde Exp $
+# $Id: Z80.pm,v 1.22 2008/02/22 20:29:20 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -53,7 +53,7 @@ CPU::Emulator::Z80 - a Z80 emulator
 
     # run until we hit a breakpoint ie RST 1
     eval { $cpu->run(); }
-    print Dumper($cpu->dump_registers());
+    print $cpu->format_registers();
 
 =head1 DESCRIPTION
 
@@ -260,9 +260,12 @@ sub _status_load {
 
 Return a hashref of all the real registers and their values.
 
-=head2 print_registers
+=head2 format_registers
 
-A convenient method for printing out all the registers in a sane format.
+A convenient method for getting all the registers in a nice
+printable format.  It mostly exists to help me with debuggering,
+but if you promise to be good you can use it too.  Just don't
+rely on the format remaining unchanged.
 
 =cut
 
@@ -275,15 +278,15 @@ sub registers {
     }
 }
 
-sub print_registers {
+sub format_registers {
     my $self = shift;
-    printf("
-             SZ5H3PNC                             SZ5H3PNC
-A:  0x%02X F:  %08b HL:  0x%04X    A_: 0x%02X F_: %08b HL_: 0x%04X
-B:  0x%02X C:  0x%02X                    B_: 0x%02X C_: 0x%02X
-D:  0x%02X E:  0x%02X                    D_: 0x%02X E_: 0x%02X
-
-R:  0x%02X IX: 0x%04X IY: 0x%04X SP: 0x%04X PC: 0x%04X
+    sprintf("#
+#              SZ5H3PNC                             SZ5H3PNC
+# A:  0x%02X F:  %08b HL:  0x%04X    A_: 0x%02X F_: %08b HL_: 0x%04X
+# B:  0x%02X C:  0x%02X                    B_: 0x%02X C_: 0x%02X
+# D:  0x%02X E:  0x%02X                    D_: 0x%02X E_: 0x%02X
+# 
+# R:  0x%02X IX: 0x%04X IY: 0x%04X SP: 0x%04X PC: 0x%04X
 ", map { $self->register($_)->get(); } qw(A F HL A_ F_ HL_ B C B_ C_ D E D_ E_ R IX IY SP PC));
 }
 
@@ -390,7 +393,7 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
     0b00110010 => sub { _LD_ind_r8(shift(), 'A', @_); }, # LD (nn), A
     0b00111010 => sub { _LD_r8_ind(shift(), 'A', @_); }, #LD A, (nn)
     (map {
-        my($p, $q) = ($_ & 0b110 >> 1, $_ & 0b1);
+        my($p, $q) = (($_ & 0b110) >> 1, $_ & 0b1);
         0b00000011 | ($_ << 3) => sub {
             $q ? _DEC($_[0], $TABLE_RP[$p]) # DEC rp[p]
                : _INC($_[0], $TABLE_RP[$p]) # INC rp[p]
@@ -522,9 +525,8 @@ sub _check_cond {
 }
 
 sub _ADD_r16_r16 {
-die("ADD_r16_R16 NYI");
     my($self, $r1, $r2) = @_;
-
+    $self->register($r1)->add($self->register($r2)->get());
 }
 sub _DEC {
     # flag-twiddling is dealt with in the register's dec() method

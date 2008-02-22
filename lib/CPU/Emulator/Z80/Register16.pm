@@ -1,4 +1,4 @@
-# $Id: Register16.pm,v 1.3 2008/02/22 00:57:14 drhyde Exp $
+# $Id: Register16.pm,v 1.4 2008/02/22 20:29:21 drhyde Exp $
 
 package CPU::Emulator::Z80::Register16;
 
@@ -8,6 +8,8 @@ use warnings;
 use vars qw($VERSION);
 
 use base qw(CPU::Emulator::Z80::Register);
+
+use CPU::Emulator::Z80::ALU;
 
 $VERSION = '1.0';
 
@@ -91,6 +93,17 @@ sub set {
     if(exists($self->{set})) {
         return $self->{set}->(shift);
     } else { $self->{value} = shift() & 0xFFFF }
+}
+
+=head2 add
+
+Add the specified value to the register.
+
+=cut
+
+sub add {
+    my($self, $op) = @_;
+    $self->set(ALU_add16($self->cpu()->register('F'), $self->get(), $op));
 }
 
 =head2 inc, dec

@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.4 2008/02/22 19:04:01 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.5 2008/02/22 20:29:21 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -14,6 +14,18 @@ print "1..".scalar(@tests)."\n";
 
 use CPU::Emulator::Z80;
 use YAML::Tiny;
+
+my %testnames = ();
+my $fh;
+open($fh, 't/fuse-tests/testnames') && do {
+    foreach(<$fh>) {
+        chomp;
+        my($opcodes, $desc) = split(/;/, $_);
+        $opcodes =~ s/[^0-9a-f]//gi;
+        $testnames{lc($opcodes)} = $desc;
+    }
+    close($fh);
+};
 
 my $test = 0;
 foreach my $yamlfile (@tests) {
@@ -34,6 +46,7 @@ foreach my $yamlfile (@tests) {
     }
 
     my $beforememory = $cpu->memory()->{contents}; # FIXME - internals
+    my $beforeregs = $cpu->format_registers();
     $cpu->run(Ts => $y->[0]->{Ts}); # execute this many T states
 
     $y = YAML::Tiny->read("$yamlfile.expected.yml");
@@ -49,6 +62,10 @@ foreach my $yamlfile (@tests) {
                   (($r eq 'AF') ? sprintf(" flags: 0b%08b\n", $cpu->register('F')->get()) : "\n");
         }
     }
+    if($errors) {
+        $errors .= "#\n# started with\n".$beforeregs.
+                   "#\n# finished with\n".$cpu->format_registers()
+    }
 
     foreach my $addr (keys %{$y->[0]->{mem}}) {
         foreach(@{$y->[0]->{mem}->{$addr}}) {
@@ -63,7 +80,7 @@ foreach my $yamlfile (@tests) {
             $addr++;
         }
     }
-    print ''.($errors ? 'not ' : '')."ok $test - $y->[0]->{name}.in.yml\n";
+    print ''.($errors ? 'not ' : '')."ok $test -\t".uc($y->[0]->{name}).": $testnames{$y->[0]->{name}}\n";
     print $errors;
     last if($errors);
 }
