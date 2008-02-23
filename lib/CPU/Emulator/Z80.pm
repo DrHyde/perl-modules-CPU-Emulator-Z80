@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.26 2008/02/23 13:11:34 drhyde Exp $
+# $Id: Z80.pm,v 1.27 2008/02/23 14:17:19 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -416,13 +416,13 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
     0b00101111 => \&_CPL,
     0b00110111 => \&_SCF,
     0b00111111 => \&_CCF,
-
-    # LD r[y], r[z] (exception: y=6, z=6 is HALT
-    (map { 0b01000000 + $_ => 1 } (0 .. 0b111111)),
+    (map { my $y = $_ >> 3; my $z = $_ & 0b111; 0b01000000 + $_ => sub {
+        _LD_r8_r8(shift(), $TABLE_R[$y], $TABLE_R[$z]); # LD r[y], r[z]
+    } } (0 .. 0b111111)),
+    0b01110110 => \&_HALT,
     # alu[y] on A and r[z]
     (map { 0b10000000 + $_ => 1 } (0 .. 0b111111)),
 
-    0x76 => \&_HALT,
     0xC3 => \&_JP_unconditional,
     # and finally,  prefixed instructions
     0xCB, {
@@ -530,9 +530,15 @@ sub _ADD_r16_r16 {
     $self->register($r1)->add($self->register($r2)->get());
 }
 sub _DEC {
-    # flag-twiddling is dealt with in the register's dec() method
     my($self, $r) = @_;
-    $self->register($r)->dec()
+    if($r eq '(HL)') {
+        my @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $self->register('W')->dec();
+        _LD_ind_r8($self, 'W', @addr);
+    } else {
+        $self->register($r)->dec();
+    }
 }
 sub _DJNZ {
     my($self, $offset) = @_;
@@ -556,14 +562,11 @@ sub _HALT { shift()->register('PC')->dec(); sleep(1) }
 sub _INC {
     my($self, $r) = @_;
     if($r eq '(HL)') {
-        my $addr = $self->register('HL')->get();
-        my $value = $self->memory()->peek($addr) + 1;
-        $self->memory()->poke($addr, $value);
-        $self->register('F')->set3($value & 0b1000);
-        $self->register('F')->set5($value & 0b100000);
-        # FIXME - flags are just plain wrong
+        my @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $self->register('W')->inc();
+        _LD_ind_r8($self, 'W', @addr);
     } else {
-        # flag-twiddling is dealt with in the register's inc() method
         $self->register($r)->inc();
     }
 }
@@ -601,7 +604,7 @@ sub _LD_r8_imm {
     # self, register, data
     my($self, $r8, $byte) = @_;
     $r8 eq '(HL)'
-        ? $self->memory()->poke($self->register('HL'), $byte)
+        ? $self->memory()->poke($self->register('HL')->get(), $byte)
         : $self->register($r8)->set($byte)
 }
 sub _LD_r16_ind {
@@ -622,7 +625,17 @@ sub _LD_r16_r16 {
 }
 sub _LD_r8_r8 {
     my($self, $r1, $r2) = @_;
-    $self->register($r1)->set($self->register($r2)->get());
+    if($r2 eq '(HL)') {
+        my @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r2 = 'W';
+    }
+    if($r1 eq '(HL)') {
+        my @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_ind_r8($self, $r2, @addr);
+    } else {
+        $self->register($r1)->set($self->register($r2)->get());
+    }
 }
 sub _NOP { }
 sub _RLCA {
@@ -723,9 +736,26 @@ sub _CPL {
     $self->register('F')->set3($self->register('A')->get() & 0b1000);
     $self->register('F')->set5($self->register('A')->get() & 0b100000);
 }
-sub _SCF { }
-sub _CCF { }
-
+sub _SCF {
+    my $self = shift();
+    my $f = $self->register('F');
+    my $a = $self->register('A');
+    $f->setC();
+    $f->resetH();
+    $f->resetN();
+    $f->set5($a->get() & 0b100000);
+    $f->set3($a->get() & 0b1000);
+}
+sub _CCF {
+    my $self = shift();
+    my $f = $self->register('F');
+    my $a = $self->register('A');
+    $f->setH($f->getC());
+    $f->setC(!$f->getC());
+    $f->resetN();
+    $f->set5($a->get() & 0b100000);
+    $f->set3($a->get() & 0b1000);
+}
 sub _swap_regs {
     my($self, $r1, $r2) = @_;
     my $temp = $self->register($r1)->get();
