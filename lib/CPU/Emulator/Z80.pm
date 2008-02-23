@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.28 2008/02/23 20:07:01 drhyde Exp $
+# $Id: Z80.pm,v 1.29 2008/02/23 23:24:44 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -152,6 +152,7 @@ sub new {
     $self->{derived_registers}->{BC_}  = $self->_derive_register16(qw(B_ C_));
     $self->{derived_registers}->{DE}  = $self->_derive_register16(qw(D E));
     $self->{derived_registers}->{DE_}  = $self->_derive_register16(qw(D_ E_));
+    $self->{derived_registers}->{WZ}  = $self->_derive_register16(qw(W Z));
     $self->{derived_registers}->{H}   = $self->_derive_register8(qw(HL high));
     $self->{derived_registers}->{H_}   = $self->_derive_register8(qw(HL_ high));
     $self->{derived_registers}->{L}   = $self->_derive_register8(qw(HL low));
@@ -290,7 +291,8 @@ sub format_registers {
 # D:  0x%02X E:  0x%02X                    D_: 0x%02X E_: 0x%02X
 # 
 # R:  0x%02X IX: 0x%04X IY: 0x%04X SP: 0x%04X PC: 0x%04X
-", map { $self->register($_)->get(); } qw(A F HL A_ F_ HL_ B C B_ C_ D E D_ E_ R IX IY SP PC));
+# W:  0x%02X Z:  0x%02X (internal use only)
+", map { $self->register($_)->get(); } qw(A F HL A_ F_ HL_ B C B_ C_ D E D_ E_ R IX IY SP PC W Z));
 }
 
 =head2 run
@@ -317,6 +319,7 @@ my @TABLE_ROT = (
     \&_RLC, \&_RRC, \&_RL, \&_RR, \&_SLA, \&_SRA, \&_SLL, \&_SRL
 );
 
+# NB order is important in these tables
 %INSTR_LENGTHS = (
     (map { $_ => 'UNDEFINED' } (0 .. 255)),
     # un-prefixed instructions
@@ -348,33 +351,16 @@ my @TABLE_ROT = (
     (map { 0b11000001 | ($_ << 3) => 1 } (0 .. 7)), # POP rp2[p]/RET/EXX/JP HL/LD SP, HL
     (map { 0b11000010 | ($_ << 3) => 3 } (0 .. 7)), # JP cc[y], nn
     (map { 0b11000100 | ($_ << 3) => 3 } (0 .. 7)), # CALL cc[y], nn
-    (map { 0b11000101 | ($_ << 4) => 1 } (0 .. 7)), # PUSH rp2[p]
+    (map { 0b11000101 | ($_ << 4) => 1 } (0 .. 3)), # PUSH rp2[p]
     (map { 0b11000110 | ($_ << 3) => 2 } (0 .. 7)), # ALU[y] A, n
-    (map { 0b11000111 | ($_ << 4) => 1 } (0 .. 7)), # RST y*8
+    (map { 0b11000111 | ($_ << 3) => 1 } (0 .. 7)), # RST y*8
+    (map { 0b11000011 | ($_ << 4) => 1 } (4 ..7)), # EX(SP), HL/EX DE, HL/DI/EI
+    0b11010011 => 2, # OUT (n), A
+    0b11011011 => 2, # IN A, (n)
+    0xC3 => 3, # JP nn
+    0xCD => 3, # CALL nn
 
-
-    0xC3 => 3, # JP
-    # and finally ...
-    # length tables for prefixes ...
-    0xDD, {
-            # NB lengths in here do *not* include the prefix
-            (map { $_ => sub { $INSTR_LENGTHS{$_} } } ( 0 .. 255)),
-            0xCB => {
-                # NB lengths in here do *not* include either prefix byte
-                (map { $_ => 'UNDEFINED' } (0 .. 255)),
-            },
-            0xDD => 1, # NOP
-            0xED => 1, # NOP
-            0xFD => 1, # NOP
-          },
-    # synthesise a copy of 0xDD's table
-    0xFD, {
-            (map { $_ => sub { $INSTR_LENGTHS{0xDD}->{$_} } } ( 0 .. 255)),
-          },
-    0xCB, {
-            # Roll/shift, BIT, RES and SET
-            (map { $_ => 1 } (0 .. 255)),
-          },
+    0xCB, { (map { $_ => 1 } (0 .. 255)) }, # roll/shift/bit/res/set
     0xED, {
             (map { $_ => 'UNDEFINED' } (0 .. 255)),
             # invalid instr, equiv to NOP (actually a NONI)
@@ -382,12 +368,24 @@ my @TABLE_ROT = (
                                0b11000000 .. 0b11111111)),
           },
 );
+$INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
+    # NB lengths in here do *not* include the prefix
+    (map { $_ => $INSTR_LENGTHS{$_} } (0 .. 255)),
+    0x34 => 2, # INC (IX + d)
+    0xCB => {
+        # NB lengths in here do *not* include either prefix byte
+        (map { $_ => 'UNDEFINED' } (0 .. 255)),
+    },
+    0xDD => 1, # NOP
+    0xED => 1, # NOP
+    0xFD => 1, # NOP
+};
 
 # these are all passed a list of parameter bytes
 %INSTR_DISPATCH = (
     # un-prefixed instructions
     0          => \&_NOP,
-    0b00001000 => \&_EX_AF_AF,
+    0b00001000 => sub { _swap_regs(shift(), qw(AF AF_)); },
     0b00010000 => \&_DJNZ,
     0b00011000 => \&_JR_unconditional,
     (map { my $y = $_; ($_ << 3) => sub {
@@ -411,15 +409,15 @@ my @TABLE_ROT = (
     (map {
         my($p, $q) = (($_ & 0b110) >> 1, $_ & 0b1);
         0b00000011 | ($_ << 3) => sub {
-            $q ? _DEC($_[0], $TABLE_RP[$p]) # DEC rp[p]
-               : _INC($_[0], $TABLE_RP[$p]) # INC rp[p]
+            $q ? _DEC($_[0], $TABLE_RP[$p], $_[1]) # DEC rp[p]
+               : _INC($_[0], $TABLE_RP[$p], $_[1]) # INC rp[p]
         }
     } (0 .. 7)),
     (map { my $y = $_; 0b00000100 | ($_ << 3) => sub {
-        _INC($_[0], $TABLE_R[$y]) # INC r[y]
+        _INC($_[0], $TABLE_R[$y], $_[1]) # INC r[y]
     } } (0 .. 7)),
     (map { my $y = $_; 0b00000101 | ($_ << 3) => sub {
-        _DEC($_[0], $TABLE_R[$y]) # DEC r[y]
+        _DEC($_[0], $TABLE_R[$y], $_[1]) # DEC r[y]
     } } (0 .. 7)),
     (map { my $y = $_; 0b00000110 | ($_ << 3) => sub {
         _LD_r8_imm(shift(), $TABLE_R[$y], @_) # LD r[y], n
@@ -461,15 +459,26 @@ my @TABLE_ROT = (
     (map { my $y = $_; 0b11000111 | ($_ << 3) => sub {
         _CALL_unconditional(shift(), $y * 8, 0); # RST y*8
     } } (0 .. 7)),
+    0xC3 => \&_JP_unconditional,
+    0b11010011 => \&_OUT_n_A, # OUT (n), A
+    0b11011011 => \&_IN_A_n, # IN A, (n)
+    0b11100011 => sub { # EX (SP), HL
+        my $self = shift;
+        _POP($self, 'WX'); _PUSH($self, 'HL');
+        _LD_r16_r16($self, 'HL', 'WX');
+    },
+    0b11101011 => sub { _swap_regs(shift(), qw(DE HL)); },
+    0b11110011 => \&_DI,
+    0b11111011 => \&_EI,
     (map { my $p = $_; 0b11000101 | ($_ << 4) => sub {
         _PUSH(shift(), $TABLE_RP2[$p]); # PUSH rp2[p]
     } } (0 .. 3)),
+    0xCD => \&_CALL_unconditional,
     0b11001001 => sub { _POP(shift(), 'PC'); }, # RET
     0b11011001 => \&_EXX,
     0b11101001 => \&_JP_HL,
     0b11111001 => \&_LD_SP_HL,
 
-    0xC3 => \&_JP_unconditional,
     # and finally,  prefixed instructions
     0xCB, {
             (map { my $y = $_ >> 3; my $z = $_ & 7; 0b00000000 | $_ => sub {
@@ -485,19 +494,23 @@ my @TABLE_ROT = (
                 _SET(shift(), $y, $TABLE_R[$z]);
             } } (0 .. 63)),
           },
+    0xDD, {
+               map { my $i = $_; $_ => sub {
+                   _swap_regs($_[0], qw(HL IX));
+                   $INSTR_DISPATCH{$i}->(@_);
+                   _swap_regs($_[0], qw(HL IX));
+               } } (0 .. 255)
+          },
     0xED, {
             (map { $_ => \&_NOP } ( 0b00000000 .. 0b00111111,
                                     0b11000000 .. 0b11111111)),
           },
-    0xDD, {
-            0xDD => \&_NOP,
-            0xED => \&_NOP,
-            0xFD => \&_NOP,
-          },
     0xFD, {
-            0xDD => \&_NOP,
-            0xED => \&_NOP,
-            0xFD => \&_NOP,
+               map { my $i = $_; $_ => sub {
+                   _swap_regs($_[0], qw(HL IY));
+                   $INSTR_DISPATCH{$i}->(@_);
+                   _swap_regs($_[0], qw(HL IY));
+               } } (0 .. 255)
           },
 );
 
@@ -512,7 +525,7 @@ sub run {
         $self->{instr_dispatch_table} = \%INSTR_DISPATCH;
         $self->{prefix_bytes} = [];
         $self->_execute($self->_fetch());
-        delete $self->{instr_lengths_table};
+        delete $self->{instr_length_table};
         delete $self->{instr_dispatch_table};
         delete $self->{prefix_bytes};
     }
@@ -521,18 +534,14 @@ sub run {
 # fetch all the bytes for an instruction and return them
 sub _fetch {
     my $self = shift;
-    my @bytes = ();
     my $pc = $self->register('PC')->get();
     
     $self->register('R')->inc();
     my $byte = $self->memory()->peek($pc);
-    push @bytes, $byte;
+    my @bytes = ($byte);
 
     # prefix byte
-    if(
-        ref($self->{instr_dispatch_table}->{$byte}) &&
-        reftype($self->{instr_dispatch_table}->{$byte}) eq 'HASH'
-    ) {
+    if(ref($self->{instr_length_table}->{$byte})) {
         # printf("Found prefix byte %#04x\n", $byte);
         $self->{instr_dispatch_table} = $self->{instr_dispatch_table}->{$byte};
         $self->{instr_length_table} = $self->{instr_length_table}->{$byte};
@@ -542,8 +551,6 @@ sub _fetch {
     }
 
     my $bytes_to_fetch = $self->{instr_length_table}->{$byte};
-    $bytes_to_fetch = $bytes_to_fetch->()
-        if(ref($bytes_to_fetch) && reftype($bytes_to_fetch) eq 'CODE');
     
     die(sprintf(
         "_fetch: Unknown instruction 0x%02X at 0x%04X with prefix bytes ["
@@ -589,9 +596,15 @@ sub _check_cond {
 
 sub _ADD_r16_r16 {
     my($self, $r1, $r2) = @_;
+    # $r1 = 'IX' if($r1 eq 'HL' && exists($self->{prefix_bytes}->[0]) && $self->{prefix_bytes}->[0] == 0xDD);
+    # $r1 = 'IY' if($r1 eq 'HL' && exists($self->{prefix_bytes}->[0]) && $self->{prefix_bytes}->[0] == 0xFD);
     $self->register($r1)->add($self->register($r2)->get());
 }
-sub _ADC_r8_r8 { _ADD_r8_r8(@_, shift()->register('F')->getC()); }
+sub _ADC_r8_r8 {
+    my($self, $r1, $r2) = @_;
+    _ADD_r8_r8($self, $r1, $r2, $self->register('F')->getC());
+    # $self->register('F')->setP(ALU_parity($self->register($r1)->get()));
+}
 sub _ADD_r8_r8 {
     my($self, $r1, $r2, $c) = @_;
     # $r1 is always A, $r2 is A/B/C/D/EH/L/(HL)/W/Z
@@ -661,18 +674,13 @@ sub _binop {
     $self->register('F')->set5($self->register($r1)->get() & 0b100000);
     $self->register('F')->setH($op eq '&');
     $self->register('F')->set3($self->register($r1)->get() & 0b1000);
-    $self->register('F')->setP(_parity($self->register($r1)->get()));
+    $self->register('F')->setP(ALU_parity($self->register($r1)->get()));
     $self->register('F')->resetN();
     $self->register('F')->resetC();
 }
 sub _AND_r8_r8 { _binop(@_, '&'); }
 sub _OR_r8_r8  { _binop(@_, '|'); }
 sub _XOR_r8_r8 { _binop(@_, '^'); }
-sub _parity {
-    my($v, $p) = (shift, 1);
-    $p = !$p foreach(grep { $v & 2**$_ } 0 .. 15);
-    $p;
-}
 sub _SBC_r8_r8 { _SUB_r8_r8(@_, shift()->register('F')->getC()); }
 sub _SUB_r8_r8 {
     my($self, $r1, $r2, $c) = @_;
@@ -716,6 +724,13 @@ sub _DEC {
         $self->register($r)->dec();
     }
 }
+sub _EXX {
+    my $self = shift;
+    _swap_regs($self, qw(BC BC_));
+    _swap_regs($self, qw(DE DE_));
+    _swap_regs($self, qw(HL HL_));
+
+}
 sub _DJNZ {
     my($self, $offset) = @_;
 
@@ -723,22 +738,21 @@ sub _DJNZ {
 
     $self->register('B')->dec();         # decrement B and ...
     if($self->register('B')->get()) {    # jump if not zero
-        _LD_r8_imm($self, 'Z', $offset);
         $self->register('PC')->set(
             $self->register('PC')->get() +
-            $self->register('Z')->getsigned()
+            ALU_getsigned($offset, 8)
         );
     }
     _LD_r8_r8($self, 'F', 'W');          # restore flags
 }
-sub _EX_AF_AF {
-    shift()->_swap_regs(qw(AF AF_));
-}
 sub _HALT { shift()->register('PC')->dec(); sleep(1) }
 sub _INC {
-    my($self, $r) = @_;
+    my($self, $r, $d) = @_;
+    $d = ALU_getsigned($d || 0, 8);
+
     if($r eq '(HL)') {
-        my @addr = map { $self->register($_)->get()} qw(L H);
+        my $addr = $self->register('HL')->get() + $d;
+        my @addr = ($addr & 0xFF, $addr >> 8);
         _LD_r8_ind($self, 'W', @addr);
         $self->register('W')->inc();
         _LD_ind_r8($self, 'W', @addr);
@@ -748,10 +762,9 @@ sub _INC {
 }
 sub _JR_unconditional {
     my($self, $offset) = @_;
-    _LD_r8_imm($self, 'Z', $offset);
     $self->register('PC')->set(
         $self->register('PC')->get() +
-        $self->register('Z')->getsigned()
+        ALU_getsigned($offset, 8)
     );
 }
 sub _JP_unconditional {
@@ -775,7 +788,6 @@ sub _LD_indr16_r8 {
 }
 sub _LD_r16_imm {
     # self, register, lo, hi
-    # print Dumper(\@_);
     my $self = shift;
     $self->register(shift())->set(shift() + 256 * shift());
 }
@@ -817,36 +829,6 @@ sub _LD_r8_r8 {
     }
 }
 sub _NOP { }
-# sub _RLCA { # RLC A, but preserves P/S/Z
-#     my $self = shift;
-#     my($p, $s, $z) = (
-#         $self->register('F')->getP(),
-#         $self->register('F')->getS(),
-#         $self->register('F')->getZ()
-#     );
-#     _RLC($self, 'A');
-#     $self->register('F')->setP($p);
-#     $self->register('F')->setS($s);
-#     $self->register('F')->setZ($z);
-# }
-# sub _RLC {
-#     my($self, $r) = @_;
-#     my @addr;
-#     if($r eq '(HL)') {
-#         @addr = map { $self->register($_)->get()} qw(L H);
-#         _LD_r8_ind($self, 'W', @addr);
-#         $r = 'W';
-#     }
-#     _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
-#     $self->register('F')->resetH();
-#     $self->register('F')->resetN();
-#     $self->register('F')->set5($self->register($r)->get() & 0b100000);
-#     $self->register('F')->set3($self->register($r)->get() & 0b1000);
-#     $self->register('F')->setC($self->register($r)->get() & 1);
-#     $self->register('F')->setP(_parity($self->register($r)->get()));
-#     $self->register('F')->setS($self->register($r)->get() & 0x80);
-#     $self->register('F')->setZ($self->register($r)->get() == 0);
-# }
 sub _RLCA {
     my $self = shift;
     $self->register('A')->set(
@@ -909,7 +891,7 @@ sub _cb_rot {
     _swap_regs($self, $r, 'A') if($r ne 'A'); # swap back again
     _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
     # now frob extra flags
-    $self->register('F')->setP(_parity($self->register($r)->get()));
+    $self->register('F')->setP(ALU_parity($self->register($r)->get()));
     $self->register('F')->setS($self->register($r)->get() & 0x80);
     $self->register('F')->setZ($self->register($r)->get() == 0);
 }
@@ -944,7 +926,7 @@ sub _SLA {
     $self->register('F')->setZ($self->register($r)->get() == 0);
     $self->register('F')->set5($self->register($r)->get() & 0b100000);
     $self->register('F')->set3($self->register($r)->get() & 0b1000);
-    $self->register('F')->setP(_parity($self->register($r)->get()));
+    $self->register('F')->setP(ALU_parity($self->register($r)->get()));
     $self->register('F')->setS($self->register($r)->get() & 0x80);
     $self->register('F')->resetH();
     $self->register('F')->resetN();
@@ -960,7 +942,7 @@ sub _SLL {
     }
     _SLA(@_);
     $self->register($r)->set($self->register($r)->get() | 1);
-    $self->register('F')->setP(_parity($self->register($r)->get()));
+    $self->register('F')->setP(ALU_parity($self->register($r)->get()));
     _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
 }
 sub _SRA {
@@ -980,7 +962,7 @@ sub _SRA {
     $self->register('F')->setZ($self->register($r)->get() == 0);
     $self->register('F')->set5($self->register($r)->get() & 0b100000);
     $self->register('F')->set3($self->register($r)->get() & 0b1000);
-    $self->register('F')->setP(_parity($self->register($r)->get()));
+    $self->register('F')->setP(ALU_parity($self->register($r)->get()));
     $self->register('F')->setS($self->register($r)->get() & 0x80);
     $self->register('F')->resetH();
     $self->register('F')->resetN();
@@ -997,7 +979,7 @@ sub _SRL {
     _SRA(@_);
     $self->register($r)->set($self->register($r)->get() & 0x7F);
     $self->register('F')->setS($self->register($r)->get() & 0x80);
-    $self->register('F')->setP(_parity($self->register($r)->get()));
+    $self->register('F')->setP(ALU_parity($self->register($r)->get()));
     _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
 }
 sub _DAA {
@@ -1086,6 +1068,10 @@ sub _PUSH {
         $self->register($r)->get()
     );
 }
+sub _OUT_n_A {}
+sub _IN_A_n {}
+sub _DI {}
+sub _EI {}
 sub _swap_regs {
     my($self, $r1, $r2) = @_;
     my $temp = $self->register($r1)->get();

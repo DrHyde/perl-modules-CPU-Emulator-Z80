@@ -1,10 +1,12 @@
-# $Id: Register.pm,v 1.4 2008/02/22 00:57:14 drhyde Exp $
+# $Id: Register.pm,v 1.5 2008/02/23 23:24:44 drhyde Exp $
 
 package CPU::Emulator::Z80::Register;
 
 use vars qw($VERSION);
 
 $VERSION = '1.0';
+
+use CPU::Emulator::Z80::ALU;
 
 sub get {}
 sub set {}
@@ -31,13 +33,7 @@ Decodes the register 2s-complement-ly and return a signed value.
 sub getsigned {
     my $self = shift;
     my $value = $self->get();
-    # if MSB == 0, just return the value
-    return $value unless($value & (2 ** ($self->{bits} - 1)));
-    # algorithm is:
-    #   flip all bits
-    #   add 1
-    #   negate
-    return -1 * (($value ^ (2 ** $self->{bits} - 1)) + 1);
+    return ALU_getsigned($value, $self->{bits});
 }
 
 =head2 cpu

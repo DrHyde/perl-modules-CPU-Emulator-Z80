@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.9 2008/02/23 13:11:34 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.10 2008/02/23 23:24:44 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -90,14 +90,16 @@ foreach my $yamlfile (@tests) {
         }
     }
     
-    print ''.($errors ? 'not ' : '')."ok $test -  \t".uc($y->[0]->{name}).": ".
-        (do {
-            $y->[0]->{name} =~ s/_.*//;
-            exists($testnames{$y->[0]->{name}})
-        } ? $testnames{$y->[0]->{name}} : '').
-        "\n";
-    print $errors;
-    last if($errors
-        # && $y->[0]->{name} !~ /^27/
-    );
+    if(uc($y->[0]->{name}) =~ /^DB/) {
+        print "ok $test # skip ".uc($y->[0]->{name})." I/O or interrupt\n";
+    } else {
+        print ''.($errors ? 'not ' : '')."ok $test -  \t".uc($y->[0]->{name}).": ".
+            (do {
+                $y->[0]->{name} =~ s/_.*//;
+                exists($testnames{$y->[0]->{name}})
+            } ? $testnames{$y->[0]->{name}} : '').
+            "\n";
+        print $errors;
+        last if($errors);
+    }
 }
