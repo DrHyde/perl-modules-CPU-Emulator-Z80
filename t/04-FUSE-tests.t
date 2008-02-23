@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.6 2008/02/22 20:57:31 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.7 2008/02/23 00:23:10 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -15,8 +15,16 @@ print "1..".scalar(@tests)."\n";
 use CPU::Emulator::Z80;
 use YAML::Tiny;
 
-my %testnames = ();
+my(%testinstrs, %testnames) = ();
 my $fh;
+open($fh, 't/fuse-tests/testinstrs') && do {
+    foreach(<$fh>) {
+        chomp;
+        my($name, $instrs) = split(/;/, $_);
+        $testinstrs{$name} = $instrs;
+    }
+    close($fh);
+};
 open($fh, 't/fuse-tests/testnames') && do {
     foreach(<$fh>) {
         chomp;
@@ -41,13 +49,14 @@ foreach my $yamlfile (@tests) {
     }
     foreach my $addr (keys %{$y->[0]->{mem}}) {
         foreach(@{$y->[0]->{mem}->{$addr}}) {
-            $cpu->memory()->poke($addr++, $_);
+            $cpu->memory()->poke($addr, $_);
+            $addr++;
         }
     }
 
     my $beforememory = $cpu->memory()->{contents}; # FIXME - internals
     my $beforeregs = $cpu->format_registers();
-    $cpu->run(Ts => $y->[0]->{Ts}); # execute this many T states
+    $cpu->run($testinstrs{$y->[0]->{name}} || 1); # execute this many instructions
 
     $y = YAML::Tiny->read("$yamlfile.expected.yml");
     my $errors = "";

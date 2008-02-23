@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.23 2008/02/22 20:57:31 drhyde Exp $
+# $Id: Z80.pm,v 1.24 2008/02/23 00:23:10 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -275,7 +275,7 @@ sub registers {
     return {
         map {
             $_ => $self->register($_)->get()
-        } keys %{$self->{hw_registers}}
+        } grep { $_ !~ /^(W|Z)$/ } keys %{$self->{hw_registers}}
     }
 }
 
@@ -295,8 +295,8 @@ sub format_registers {
 
 Start the CPU running from whatever the Program Counter (PC) is set to.
 This will by default run for ever.  However, it takes an optional
-named parameter (either 'instrs' or 'Ts') telling the CPU to run
-either that number of instructions or for that number of T-states.
+parameter telling the CPU to run
+that number of instructions.
 
 =cut
 
@@ -446,16 +446,11 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
 
 sub run {
     my $self = shift;
-    my($instrs_to_execute, $Ts_to_execute) = (-1, -1);
-    if(@_ == 2) {
-        $_[0] eq 'Ts'     ? $Ts_to_execute = $_[1] :
-        $_[0] eq 'instrs' ? $instrs_to_execute = $_[1]
-                          : die("Bad params to run method\n");
-    } elsif(@_) { die("Bad params to run method\n"); }
+    my $instrs_to_execute = -1;
+    $instrs_to_execute = shift() if(@_);
 
-    while($instrs_to_execute && $Ts_to_execute) {
+    while($instrs_to_execute) {
         $instrs_to_execute--;
-        $Ts_to_execute--;
         $self->{instr_length_table} = \%INSTR_LENGTHS;
         $self->{instr_dispatch_table} = \%INSTR_DISPATCH;
         $self->{prefix_bytes} = [];
@@ -537,8 +532,7 @@ sub _DEC {
 sub _DJNZ {
     my($self, $offset) = @_;
 
-    # my $f = $self->register('F')->get(); # preserve flags;
-    _LD_r8_r8($self, 'W', 'F');
+    _LD_r8_r8($self, 'W', 'F');          # preserve flags
 
     $self->register('B')->dec();         # decrement B and ...
     if($self->register('B')->get()) {    # jump if not zero
@@ -546,8 +540,7 @@ sub _DJNZ {
         $offset = $self->register('Z')->getsigned();
         $self->register('PC')->set($self->register('PC')->get() + $offset);
     }
-    # $self->register('F')->set($f);       # restore flags
-    _LD_r8_r8($self, 'F', 'W');
+    _LD_r8_r8($self, 'F', 'W');          # restore flags
 }
 sub _EX_AF_AF {
     shift()->_swap_regs(qw(AF AF_));
@@ -581,14 +574,15 @@ sub _LD_indr16_r8 {
 sub _LD_r16_imm {
     # self, register, lo, hi
     # print Dumper(\@_);
-    shift()->register(shift())->set(shift() + 256 * shift());
+    my $self = shift;
+    $self->register(shift())->set(shift() + 256 * shift());
 }
 sub _LD_r8_imm {
     # self, register, data
     my($self, $r8, $byte) = @_;
     $r8 eq '(HL)'
         ? $self->memory()->poke($self->register('HL'), $byte)
-        : $self->register($r8)->set($byte);
+        : $self->register($r8)->set($byte)
 }
 sub _LD_r16_ind {
     my($self, $r16, @bytes) = @_;
