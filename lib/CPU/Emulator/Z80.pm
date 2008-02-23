@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.25 2008/02/23 01:38:04 drhyde Exp $
+# $Id: Z80.pm,v 1.26 2008/02/23 13:11:34 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -673,40 +673,45 @@ sub _RRA {
     $self->register('F')->resetN();
 }
 sub _DAA {
-    # FIXME - this is broken
     my $self = shift;
     my $a = $self->register('A');
     my $f = $self->register('F');
+    my($n, $h, $lo, $hi) =
+        ($f->getN(), $f->getH(),
+         $a->get() & 0x0F, ($a->get() >> 4) & 0x0F);
     my $table = [
-        #   N C high H low  add Cafter
-        [qw(0 0 0-9  0 0-9  0   0)],
-        [qw(0 0 0-8  0 a-f  6   0)],
-        [qw(0 0 0-9  1 0-3  6   0)],
-        [qw(0 0 a-f  0 0-9  60  1)],
-        [qw(0 0 9-f  0 a-f  66  1)],
-        [qw(0 0 a-f  1 0-3  66  1)],
-        [qw(0 1 0-2  0 0-9  60  1)],
-        [qw(0 1 0-2  0 a-f  66  1)],
-        [qw(0 1 0-3  1 0-3  66  1)],
-        [qw(1 0 0-9  0 0-9  0   0)],
-        [qw(1 0 0-8  1 6-f  fa  0)],
-        [qw(1 1 7-f  0 0-9  a0  1)],
-        [qw(1 1 6-f  1 6-f  9a  1)],
+        # NB this table comes from Sean Young's "The Undocumented
+        # Z80 Documented".  Zaks is wrong.
+        # http://www.z80.info/zip/z80-documented.pdf
+        #   C high   H low add Cafter
+        [qw(0 0-9    0 0-9 0   0)],
+        [qw(0 0-9    1 0-9 6   0)],
+        [qw(0 0-8    . a-f 6   0)],
+        [qw(0 a-f    0 0-9 60  1)],
+        [qw(1 0-9a-f 0 0-9 60  1)],
+        [qw(1 0-9a-f 1 0-9 66  1)],
+        [qw(1 0-9a-f . a-f 66  1)],
+        [qw(0 9a-f   . a-f 66  1)],
+        [qw(0 a-f    1 0-9 66  1)],
     ];
     foreach my $row (@{$table}) {
         my @row = @{$row};
         if(
-            $f->getN() == $row[0] &&
-            $f->getC() == $row[1] &&
-            sprintf('%x', ($a->get() >> 4) & 0x0F) =~ /^[$row[2]]$/ &&
-            $f->getH() == $row[3] &&
-            sprintf('%x', $a->get() & 0x0F) =~ /^[$row[4]]$/
+            $f->getC() == $row[0] &&
+            ($row[2] eq '.' || $f->getH() == $row[2]) &&
+            sprintf('%x', ($a->get() >> 4) & 0x0F) =~ /^[$row[1]]$/ &&
+            sprintf('%x', $a->get() & 0x0F) =~ /^[$row[3]]$/
         ) {
-            $a->set(ALU_add8($f, $a->get(), hex($row[5])));
-            $f->setC($row[6]);
+            $f->getN() ? $a->set(ALU_sub8($f, $a->get(), hex($row[4])))
+                       : $a->set(ALU_add8($f, $a->get(), hex($row[4])));
+            $f->setC($row[5]);
             last;
         }
     }
+    $f->setH($lo > 9) if(!$n);
+    $f->resetH()      if($n && !$h);
+    $f->setH($lo < 6) if($n && $h);
+
     $f->set3($a->get() & 0b1000);
     $f->set5($a->get() & 0b100000);
 }
