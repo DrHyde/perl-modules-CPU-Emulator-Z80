@@ -1,4 +1,4 @@
-# $Id: Register8.pm,v 1.5 2008/02/22 19:04:01 drhyde Exp $
+# $Id: Register8.pm,v 1.6 2008/02/23 20:07:01 drhyde Exp $
 
 package CPU::Emulator::Z80::Register8;
 
@@ -115,6 +115,28 @@ sub dec {
     my $self = shift;
     my $flags = $self->cpu()->register('F');
     $self->set(ALU_dec8($flags, $self->get()));
+}
+
+=head2 add
+
+Add the specified value to the register.
+
+=cut
+
+sub add {
+    my($self, $op) = @_;
+    $self->set(ALU_add8($self->cpu()->register('F'), $self->get(), $op));
+}
+
+=head2 sub
+
+Subtract the specified value from the register.
+
+=cut
+
+sub sub {
+    my($self, $op) = @_;
+    $self->set(ALU_sub8($self->cpu()->register('F'), $self->get(), $op));
 }
 
 =head1 BUGS/WARNINGS/LIMITATIONS

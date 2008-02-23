@@ -1,4 +1,4 @@
-# $Id: Register16.pm,v 1.4 2008/02/22 20:29:21 drhyde Exp $
+# $Id: Register16.pm,v 1.5 2008/02/23 20:07:01 drhyde Exp $
 
 package CPU::Emulator::Z80::Register16;
 
@@ -97,7 +97,7 @@ sub set {
 
 =head2 add
 
-Add the specified value to the register.
+Add the specified value to the register, frobbing flags
 
 =cut
 

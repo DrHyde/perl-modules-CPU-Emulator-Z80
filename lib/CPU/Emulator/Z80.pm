@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.27 2008/02/23 14:17:19 drhyde Exp $
+# $Id: Z80.pm,v 1.28 2008/02/23 20:07:01 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -23,6 +23,7 @@ use CPU::Emulator::Z80::Register8;
 use CPU::Emulator::Z80::Register8F;
 use CPU::Emulator::Z80::Register8R;
 use CPU::Emulator::Z80::Register16;
+use CPU::Emulator::Z80::Register16SP;
 use CPU::Emulator::Z80::ALU; # import add/subtract methods
 
 my @REGISTERS16 = qw(PC SP IX IY HL);          # 16 bit registers
@@ -142,6 +143,7 @@ sub new {
     bless $self->{hw_registers}->{$_}, 'CPU::Emulator::Z80::Register8F'
         foreach(qw(F F_));
     bless $self->{hw_registers}->{R}, 'CPU::Emulator::Z80::Register8R';
+    bless $self->{hw_registers}->{SP}, 'CPU::Emulator::Z80::Register16SP';
 
 
     $self->{derived_registers}->{AF}  = $self->_derive_register16(qw(A F));
@@ -307,8 +309,14 @@ my @TABLE_R   = (qw(B C D E H L (HL) A));
 my @TABLE_RP  = (qw(BC DE HL SP));
 my @TABLE_RP2 = (qw(BC DE HL AF));
 my @TABLE_CC  = (qw(NZ Z NC C PO PE P M));
-my @TABLE_ALU = ("ADD A", "ADC A", "SUB", "SBC A", qw(AND XOR OR CP));
-my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
+my @TABLE_ALU = (
+    \&_ADD_r8_r8, \&_ADC_r8_r8, \&_SUB_r8_r8, \&_SBC_r8_r8,
+    \&_AND_r8_r8, \&_XOR_r8_r8, \&_OR_r8_r8, \&_CP_r8_r8
+);
+my @TABLE_ROT = (
+    \&_RLC, \&_RRC, \&_RL, \&_RR, \&_SLA, \&_SRA, \&_SLL, \&_SRL
+);
+
 %INSTR_LENGTHS = (
     (map { $_ => 'UNDEFINED' } (0 .. 255)),
     # un-prefixed instructions
@@ -335,6 +343,14 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
     (map { 0b01000000 + $_ => 1 } (0 .. 63)), # LD r[y], r[z], HALT
     # x=2
     (map { 0b10000000 + $_ => 1 } (0 .. 63)), # alu[y] on A and r[z]
+    # x=3, z=0
+    (map { 0b11000000 | ($_ << 3) => 1 } (0 .. 7)), # RET cc[y]
+    (map { 0b11000001 | ($_ << 3) => 1 } (0 .. 7)), # POP rp2[p]/RET/EXX/JP HL/LD SP, HL
+    (map { 0b11000010 | ($_ << 3) => 3 } (0 .. 7)), # JP cc[y], nn
+    (map { 0b11000100 | ($_ << 3) => 3 } (0 .. 7)), # CALL cc[y], nn
+    (map { 0b11000101 | ($_ << 4) => 1 } (0 .. 7)), # PUSH rp2[p]
+    (map { 0b11000110 | ($_ << 3) => 2 } (0 .. 7)), # ALU[y] A, n
+    (map { 0b11000111 | ($_ << 4) => 1 } (0 .. 7)), # RST y*8
 
 
     0xC3 => 3, # JP
@@ -356,8 +372,8 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
             (map { $_ => sub { $INSTR_LENGTHS{0xDD}->{$_} } } ( 0 .. 255)),
           },
     0xCB, {
-            (map { $_ => 'UNDEFINED' } (0 .. 255)),
-            # Roll, BIT, RES and SET go here
+            # Roll/shift, BIT, RES and SET
+            (map { $_ => 1 } (0 .. 255)),
           },
     0xED, {
             (map { $_ => 'UNDEFINED' } (0 .. 255)),
@@ -420,12 +436,54 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
         _LD_r8_r8(shift(), $TABLE_R[$y], $TABLE_R[$z]); # LD r[y], r[z]
     } } (0 .. 0b111111)),
     0b01110110 => \&_HALT,
-    # alu[y] on A and r[z]
-    (map { 0b10000000 + $_ => 1 } (0 .. 0b111111)),
+    (map { my $y = $_ >> 3; my $z = $_ & 0b111; 0b10000000 + $_ => sub {
+        $TABLE_ALU[$y]->(shift(), 'A', $TABLE_R[$z]); # alu[y] A, r[z]
+    } } (0 .. 0b111111)),
+    (map { my $y = $_; 0b11000110 | ($_ << 3) => sub {
+        _LD_r8_imm($_[0], 'W', $_[1]);       # alu[y] A, n
+        $TABLE_ALU[$y]->(shift(), 'A', 'W');
+    } } (0 .. 7)),
+    (map { my $y = $_; 0b11000000 | ($_ << 3) => sub {
+        _check_cond($_[0], $TABLE_CC[$y]) && # RET cc[y]
+        _POP(shift(), 'PC');
+    } } (0 .. 7)),
+    (map { my $p = $_; 0b11000001 | ($_ << 4) => sub {
+        _POP(shift(), $TABLE_RP2[$p]); # POP rp2[p]
+    } } (0 .. 3)),
+    (map { my $y = $_; 0b11000010 | ($_ << 3) => sub {
+        _check_cond($_[0], $TABLE_CC[$y]) && # JP cc[y], nn
+        _JP_unconditional(@_);
+    } } (0 .. 7)),
+    (map { my $y = $_; 0b11000100 | ($_ << 3) => sub {
+        _check_cond($_[0], $TABLE_CC[$y]) && # CALL cc[y], nn
+        _CALL_unconditional(@_);
+    } } (0 .. 7)),
+    (map { my $y = $_; 0b11000111 | ($_ << 3) => sub {
+        _CALL_unconditional(shift(), $y * 8, 0); # RST y*8
+    } } (0 .. 7)),
+    (map { my $p = $_; 0b11000101 | ($_ << 4) => sub {
+        _PUSH(shift(), $TABLE_RP2[$p]); # PUSH rp2[p]
+    } } (0 .. 3)),
+    0b11001001 => sub { _POP(shift(), 'PC'); }, # RET
+    0b11011001 => \&_EXX,
+    0b11101001 => \&_JP_HL,
+    0b11111001 => \&_LD_SP_HL,
 
     0xC3 => \&_JP_unconditional,
     # and finally,  prefixed instructions
     0xCB, {
+            (map { my $y = $_ >> 3; my $z = $_ & 7; 0b00000000 | $_ => sub {
+                $TABLE_ROT[$y]->(shift(), $TABLE_R[$z]);
+            } } (0 .. 63)),
+            (map { my $y = $_ >> 3; my $z = $_ & 7; 0b01000000 | $_ => sub {
+                _BIT(shift(), $y, $TABLE_R[$z]);
+            } } (0 .. 63)),
+            (map { my $y = $_ >> 3; my $z = $_ & 7; 0b10000000 | $_ => sub {
+                _RES(shift(), $y, $TABLE_R[$z]);
+            } } (0 .. 63)),
+            (map { my $y = $_ >> 3; my $z = $_ & 7; 0b11000000 | $_ => sub {
+                _SET(shift(), $y, $TABLE_R[$z]);
+            } } (0 .. 63)),
           },
     0xED, {
             (map { $_ => \&_NOP } ( 0b00000000 .. 0b00111111,
@@ -471,11 +529,15 @@ sub _fetch {
     push @bytes, $byte;
 
     # prefix byte
-    if(ref($byte) && reftype($byte) eq 'HASH') {
+    if(
+        ref($self->{instr_dispatch_table}->{$byte}) &&
+        reftype($self->{instr_dispatch_table}->{$byte}) eq 'HASH'
+    ) {
+        # printf("Found prefix byte %#04x\n", $byte);
         $self->{instr_dispatch_table} = $self->{instr_dispatch_table}->{$byte};
         $self->{instr_length_table} = $self->{instr_length_table}->{$byte};
         push @{$self->{prefix_bytes}}, $byte;
-        $self->register('PC')->set($pc + 1);
+        $self->register('PC')->inc(); # set($pc + 1);
         return $self->_fetch();
     }
 
@@ -529,6 +591,120 @@ sub _ADD_r16_r16 {
     my($self, $r1, $r2) = @_;
     $self->register($r1)->add($self->register($r2)->get());
 }
+sub _ADC_r8_r8 { _ADD_r8_r8(@_, shift()->register('F')->getC()); }
+sub _ADD_r8_r8 {
+    my($self, $r1, $r2, $c) = @_;
+    # $r1 is always A, $r2 is A/B/C/D/EH/L/(HL)/W/Z
+    # $c is defined if this is really ADC
+    $c ||= 0;
+    if($r2 eq '(HL)') {
+        my @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r2 = 'W';
+    }
+    $self->register($r1)->add($self->register($r2)->get() + $c);
+}
+sub _BIT {
+    my($self, $bit, $r) = @_;
+    if($r eq '(HL)') {
+        my @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r = 'W';
+    }
+    $self->register('F')->setZ(!($self->register($r)->get() & 2**$bit));
+    $self->register('F')->setH();
+    $self->register('F')->resetN();
+    $self->register('F')->set5($self->register($r)->get() & 0b100000);
+    $self->register('F')->set3($self->register($r)->get() & 0b1000);
+    $self->register('F')->setS(
+        $bit == 7 && $self->register($r)->get() & 0x80
+    );
+    $self->register('F')->setP($self->register('F')->getZ());
+}
+sub _RES {
+    my($self, $bit, $r) = @_;
+    my @addr;
+    if($r eq '(HL)') {
+        @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r = 'W';
+    }
+    $self->register($r)->set($self->register($r)->get() & (255 - 2**$bit));
+    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
+}
+sub _SET {
+    my($self, $bit, $r) = @_;
+    my @addr;
+    if($r eq '(HL)') {
+        @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r = 'W';
+    }
+    $self->register($r)->set($self->register($r)->get() | (2**$bit));
+    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
+}
+
+sub _binop {
+    my($self, $r1, $r2, $op) = @_;
+    # $r1 is always A, $r2 is A/B/C/D/EH/L/(HL)/W/Z
+    if($r2 eq '(HL)') {
+        my @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r2 = 'W';
+    }
+    $self->register($r1)->set(eval
+        '$self->register($r1)->get()'.$op.'$self->register($r2)->get()'
+    );
+    die($@) if($@);
+    $self->register('F')->setS($self->register($r1)->get() & 0x80);
+    $self->register('F')->setZ($self->register($r1)->get() == 0);
+    $self->register('F')->set5($self->register($r1)->get() & 0b100000);
+    $self->register('F')->setH($op eq '&');
+    $self->register('F')->set3($self->register($r1)->get() & 0b1000);
+    $self->register('F')->setP(_parity($self->register($r1)->get()));
+    $self->register('F')->resetN();
+    $self->register('F')->resetC();
+}
+sub _AND_r8_r8 { _binop(@_, '&'); }
+sub _OR_r8_r8  { _binop(@_, '|'); }
+sub _XOR_r8_r8 { _binop(@_, '^'); }
+sub _parity {
+    my($v, $p) = (shift, 1);
+    $p = !$p foreach(grep { $v & 2**$_ } 0 .. 15);
+    $p;
+}
+sub _SBC_r8_r8 { _SUB_r8_r8(@_, shift()->register('F')->getC()); }
+sub _SUB_r8_r8 {
+    my($self, $r1, $r2, $c) = @_;
+    # $r1 is always A, $r2 is A/B/C/D/EH/L/(HL)/W
+    # $c is defined if this is really SBC
+    die("Can't SUB with Z reg") if($r2 eq 'Z');
+    $c ||= 0;
+    if($r2 eq '(HL)') {
+        my @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r2 = 'W';
+    }
+    $self->register($r1)->sub($self->register($r2)->get() + $c);
+}
+sub _CP_r8_r8 {
+    # $r1 is always A, $r2 is A/B/C/D/EH/L/(HL)/W
+    my($self, $r1, $r2) = @_;
+
+    # bleh, CP uses the *operand* to set flags 3 and 5, instead of
+    # the result, so wrap SUB and correct afterwards
+    if($r2 eq '(HL)') {
+        my @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r2 = 'W';
+    }
+    # and this is why we can't SUB with the Z reg
+    _LD_r8_r8($self, 'Z', $r1); # preserve r1
+    _SUB_r8_r8($self, $r1, $r2);
+    _LD_r8_r8($self, $r1, 'Z'); # restore r1
+    $self->register('F')->set5($self->register($r2)->get() & 0b100000);
+    $self->register('F')->set3($self->register($r2)->get() & 0b1000);
+}
 sub _DEC {
     my($self, $r) = @_;
     if($r eq '(HL)') {
@@ -579,8 +755,11 @@ sub _JR_unconditional {
     );
 }
 sub _JP_unconditional {
-    my $self = shift;
-    $self->register('PC')->set(shift() + 256 * shift());
+    _LD_r16_imm(shift(), 'PC', @_);
+}
+sub _CALL_unconditional {
+    _PUSH($_[0], 'PC');
+    _JP_unconditional(@_);
 }
 sub _LD_ind_r16 {
     my($self, $r16, @bytes) = @_;
@@ -638,6 +817,36 @@ sub _LD_r8_r8 {
     }
 }
 sub _NOP { }
+# sub _RLCA { # RLC A, but preserves P/S/Z
+#     my $self = shift;
+#     my($p, $s, $z) = (
+#         $self->register('F')->getP(),
+#         $self->register('F')->getS(),
+#         $self->register('F')->getZ()
+#     );
+#     _RLC($self, 'A');
+#     $self->register('F')->setP($p);
+#     $self->register('F')->setS($s);
+#     $self->register('F')->setZ($z);
+# }
+# sub _RLC {
+#     my($self, $r) = @_;
+#     my @addr;
+#     if($r eq '(HL)') {
+#         @addr = map { $self->register($_)->get()} qw(L H);
+#         _LD_r8_ind($self, 'W', @addr);
+#         $r = 'W';
+#     }
+#     _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
+#     $self->register('F')->resetH();
+#     $self->register('F')->resetN();
+#     $self->register('F')->set5($self->register($r)->get() & 0b100000);
+#     $self->register('F')->set3($self->register($r)->get() & 0b1000);
+#     $self->register('F')->setC($self->register($r)->get() & 1);
+#     $self->register('F')->setP(_parity($self->register($r)->get()));
+#     $self->register('F')->setS($self->register($r)->get() & 0x80);
+#     $self->register('F')->setZ($self->register($r)->get() == 0);
+# }
 sub _RLCA {
     my $self = shift;
     $self->register('A')->set(
@@ -684,6 +893,112 @@ sub _RRA {
     $self->register('F')->setC($lsb);
     $self->register('F')->resetH();
     $self->register('F')->resetN();
+}
+# generic wrapper for CB prefixed ROTs - wrap around A-reg version
+# and also diddle P/S/Z flags
+sub _cb_rot {
+    my($self, $fn, $r) = @_;
+    my @addr;
+    if($r eq '(HL)') {
+        @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r = 'W';
+    }
+    _swap_regs($self, $r, 'A') if($r ne 'A'); # preserve A, mv r to A
+    $fn->($self);
+    _swap_regs($self, $r, 'A') if($r ne 'A'); # swap back again
+    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
+    # now frob extra flags
+    $self->register('F')->setP(_parity($self->register($r)->get()));
+    $self->register('F')->setS($self->register($r)->get() & 0x80);
+    $self->register('F')->setZ($self->register($r)->get() == 0);
+}
+sub _RRC { my($self, $r) = @_; _cb_rot($self, \&_RRCA, $r); }
+sub _RLC { my($self, $r) = @_; _cb_rot($self, \&_RLCA, $r); }
+sub _RL {
+    my($self, $r) = @_;
+    _cb_rot($self, \&_RLA, $r); # also loads W with (HL) if needed
+    $r = 'W' if($r eq '(HL)');
+    # these two aren't done by _cb_rot
+    $self->register('F')->set5($self->register($r)->get() &0b100000);
+    $self->register('F')->set3($self->register($r)->get() &0b1000);
+}
+sub _RR {
+    my($self, $r) = @_;
+    _cb_rot($self, \&_RRA, $r); # also loads W with (HL) if needed
+    $r = 'W' if($r eq '(HL)');
+    $self->register('F')->set5($self->register($r)->get() &0b100000);
+    $self->register('F')->set3($self->register($r)->get() &0b1000);
+}
+sub _SLA {
+    my($self, $r) = @_;
+    my @addr;
+    if($r eq '(HL)') {
+        @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r = 'W';
+    }
+
+    $self->register('F')->setC($self->register($r)->get() & 0x80);
+    $self->register($r)->set($self->register($r)->get() << 1);
+    $self->register('F')->setZ($self->register($r)->get() == 0);
+    $self->register('F')->set5($self->register($r)->get() & 0b100000);
+    $self->register('F')->set3($self->register($r)->get() & 0b1000);
+    $self->register('F')->setP(_parity($self->register($r)->get()));
+    $self->register('F')->setS($self->register($r)->get() & 0x80);
+    $self->register('F')->resetH();
+    $self->register('F')->resetN();
+    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
+}
+sub _SLL {
+    my($self, $r) = @_;
+    my @addr;
+    if($r eq '(HL)') {
+        @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r = 'W';
+    }
+    _SLA(@_);
+    $self->register($r)->set($self->register($r)->get() | 1);
+    $self->register('F')->setP(_parity($self->register($r)->get()));
+    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
+}
+sub _SRA {
+    my($self, $r) = @_;
+    my @addr;
+    if($r eq '(HL)') {
+        @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r = 'W';
+    }
+
+    $self->register('F')->setC($self->register($r)->get() & 1);
+    $self->register($r)->set(
+        ($self->register($r)->get() & 0x80) |
+        ($self->register($r)->get() >> 1)
+    );
+    $self->register('F')->setZ($self->register($r)->get() == 0);
+    $self->register('F')->set5($self->register($r)->get() & 0b100000);
+    $self->register('F')->set3($self->register($r)->get() & 0b1000);
+    $self->register('F')->setP(_parity($self->register($r)->get()));
+    $self->register('F')->setS($self->register($r)->get() & 0x80);
+    $self->register('F')->resetH();
+    $self->register('F')->resetN();
+    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
+}
+sub _SRL {
+    my($self, $r) = @_;
+    my @addr;
+    if($r eq '(HL)') {
+        @addr = map { $self->register($_)->get()} qw(L H);
+        _LD_r8_ind($self, 'W', @addr);
+        $r = 'W';
+    }
+    _SRA(@_);
+    $self->register($r)->set($self->register($r)->get() & 0x7F);
+    $self->register('F')->setS($self->register($r)->get() & 0x80);
+    $self->register('F')->setP(_parity($self->register($r)->get()));
+    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
 }
 sub _DAA {
     my $self = shift;
@@ -747,7 +1062,7 @@ sub _SCF {
     $f->set3($a->get() & 0b1000);
 }
 sub _CCF {
-    my $self = shift();
+    my $self = shift;
     my $f = $self->register('F');
     my $a = $self->register('A');
     $f->setH($f->getC());
@@ -755,6 +1070,21 @@ sub _CCF {
     $f->resetN();
     $f->set5($a->get() & 0b100000);
     $f->set3($a->get() & 0b1000);
+}
+sub _POP {
+    my($self, $r) = @_;
+    $self->register($r)->set(
+        $self->memory()->peek16($self->register('SP')->get())
+    );
+    $self->register('SP')->add(2);
+}
+sub _PUSH {
+    my($self, $r) = @_;
+    $self->register('SP')->sub(2);
+    $self->memory()->poke16(
+        $self->register('SP')->get(),
+        $self->register($r)->get()
+    );
 }
 sub _swap_regs {
     my($self, $r1, $r2) = @_;
