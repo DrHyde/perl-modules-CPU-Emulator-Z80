@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.29 2008/02/23 23:24:44 drhyde Exp $
+# $Id: Z80.pm,v 1.30 2008/02/23 23:59:27 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -224,12 +224,14 @@ sub memory {
 
 Return the object representing a specified register.  This can be any
 of the real registers (eg D or D_) or a derived register (eg DE or L).
+For (HL) it returns the private internal DON'T TOUCH THIS 'W' register,
+for evil twisty internals reasons.
 
 =cut
 
 sub register {
-    my $self = shift;
-    return $self->{registers}->{shift()};
+    my($self, $r) = @_;
+    return $self->{registers}->{($r eq '(HL)') ? 'W' : $r};
 }
 
 =head2 status
@@ -372,6 +374,7 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
     # NB lengths in here do *not* include the prefix
     (map { $_ => $INSTR_LENGTHS{$_} } (0 .. 255)),
     0x34 => 2, # INC (IX + d)
+    0x35 => 2, # DEC (IX + d)
     0xCB => {
         # NB lengths in here do *not* include either prefix byte
         (map { $_ => 'UNDEFINED' } (0 .. 255)),
@@ -409,15 +412,15 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
     (map {
         my($p, $q) = (($_ & 0b110) >> 1, $_ & 0b1);
         0b00000011 | ($_ << 3) => sub {
-            $q ? _DEC($_[0], $TABLE_RP[$p], $_[1]) # DEC rp[p]
-               : _INC($_[0], $TABLE_RP[$p], $_[1]) # INC rp[p]
+            $q ? _DEC($_[0], $TABLE_RP[$p]) # DEC rp[p]
+               : _INC($_[0], $TABLE_RP[$p]) # INC rp[p]
         }
     } (0 .. 7)),
     (map { my $y = $_; 0b00000100 | ($_ << 3) => sub {
-        _INC($_[0], $TABLE_R[$y], $_[1]) # INC r[y]
+        _INC($_[0], $TABLE_R[$y], $_[1]) # INC r[y] or INC(IX/Y + d)
     } } (0 .. 7)),
     (map { my $y = $_; 0b00000101 | ($_ << 3) => sub {
-        _DEC($_[0], $TABLE_R[$y], $_[1]) # DEC r[y]
+        _DEC($_[0], $TABLE_R[$y], $_[1]) # DEC r[y] or DEC(IX/Y + d)
     } } (0 .. 7)),
     (map { my $y = $_; 0b00000110 | ($_ << 3) => sub {
         _LD_r8_imm(shift(), $TABLE_R[$y], @_) # LD r[y], n
@@ -714,15 +717,19 @@ sub _CP_r8_r8 {
     $self->register('F')->set3($self->register($r2)->get() & 0b1000);
 }
 sub _DEC {
-    my($self, $r) = @_;
-    if($r eq '(HL)') {
-        my @addr = map { $self->register($_)->get()} qw(L H);
-        _LD_r8_ind($self, 'W', @addr);
-        $self->register('W')->dec();
-        _LD_ind_r8($self, 'W', @addr);
-    } else {
-        $self->register($r)->dec();
-    }
+    my($self, $r, $d) = @_;
+    _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
+    $self->register($r)->dec();
+    _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+    # my($self, $r) = @_;
+    # if($r eq '(HL)') {
+    #     my @addr = map { $self->register($_)->get()} qw(L H);
+    #     _LD_r8_ind($self, 'W', @addr);
+    #     $self->register('W')->dec();
+    #     _LD_ind_r8($self, 'W', @addr);
+    # } else {
+    #     $self->register($r)->dec();
+   #  }
 }
 sub _EXX {
     my $self = shift;
@@ -748,17 +755,9 @@ sub _DJNZ {
 sub _HALT { shift()->register('PC')->dec(); sleep(1) }
 sub _INC {
     my($self, $r, $d) = @_;
-    $d = ALU_getsigned($d || 0, 8);
-
-    if($r eq '(HL)') {
-        my $addr = $self->register('HL')->get() + $d;
-        my @addr = ($addr & 0xFF, $addr >> 8);
-        _LD_r8_ind($self, 'W', @addr);
-        $self->register('W')->inc();
-        _LD_ind_r8($self, 'W', @addr);
-    } else {
-        $self->register($r)->inc();
-    }
+    _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
+    $self->register($r)->inc();
+    _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
 }
 sub _JR_unconditional {
     my($self, $offset) = @_;
@@ -781,6 +780,11 @@ sub _LD_ind_r16 {
 sub _LD_ind_r8 {
     my($self, $r8, @bytes) = @_;
     $self->memory()->poke($bytes[0] + 256 * $bytes[1], $self->register($r8)->get())
+}
+sub _LD_indHL_r8 {
+    my($self, $r8, $d) = @_;
+    $d = ALU_getsigned($d || 0, 8);
+    $self->memory()->poke($d + $self->register('HL')->get(), $self->register($r8)->get())
 }
 sub _LD_indr16_r8 {
     my($self, $r16, $r8) = @_;
@@ -809,6 +813,11 @@ sub _LD_r8_indr16 {
 sub _LD_r8_ind {
     my($self, $r8, @bytes) = @_;
     $self->register($r8)->set($self->memory()->peek($bytes[0] + 256 * $bytes[1]));
+}
+sub _LD_r8_indHL {
+    my($self, $r8, $d) = @_;
+    $d = ALU_getsigned($d || 0, 8);
+    $self->register($r8)->set($self->memory()->peek($d + $self->register('HL')->get()));
 }
 sub _LD_r16_r16 {
     my($self, $r1, $r2) = @_;

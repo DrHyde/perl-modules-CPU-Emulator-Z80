@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.10 2008/02/23 23:24:44 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.11 2008/02/23 23:59:27 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -71,11 +71,6 @@ foreach my $yamlfile (@tests) {
                   (($r eq 'AF') ? sprintf(" flags: 0b%08b\n", $cpu->register('F')->get()) : "\n");
         }
     }
-    if($errors) {
-        $errors .= "#\n# started with\n".$beforeregs.
-                   "#\n# finished with\n".$cpu->format_registers()
-    }
-
     foreach my $addr (keys %{$y->[0]->{mem}}) {
         foreach(@{$y->[0]->{mem}->{$addr}}) {
             if($cpu->memory()->peek($addr) != $_) {
@@ -89,7 +84,11 @@ foreach my $yamlfile (@tests) {
             $addr++;
         }
     }
-    
+    if($errors) {
+        $errors .= "#\n# started with\n".$beforeregs.
+                   "#\n# finished with\n".$cpu->format_registers()
+    }
+
     if(uc($y->[0]->{name}) =~ /^DB/) {
         print "ok $test # skip ".uc($y->[0]->{name})." I/O or interrupt\n";
     } else {
