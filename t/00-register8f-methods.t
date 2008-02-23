@@ -19,14 +19,14 @@ ok($f->isa('CPU::Emulator::Z80::Register8'),
 # C => 0b00000001
 
 $f->set(0b10101010);
-ok($f->getS() &&
-  !$f->getZ() &&
-   $f->get5() &&
-  !$f->getH() &&
-   $f->get3() &&
-  !$f->getP() &&
-   $f->getN() &&
-  !$f->getC(), "getX works");
+ok($f->getS() == 1 &&
+   $f->getZ() == 0 &&
+   $f->get5() == 1 &&
+   $f->getH() == 0 &&
+   $f->get3() == 1 &&
+   $f->getP() == 0 &&
+   $f->getN() == 1 &&
+   $f->getC() == 0, "getX works");
    
 $f->set(0);
 foreach (qw(S Z 5 H 3 P N C)) {

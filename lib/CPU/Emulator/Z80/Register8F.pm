@@ -1,4 +1,4 @@
-# $Id: Register8F.pm,v 1.4 2008/02/19 18:40:24 drhyde Exp $
+# $Id: Register8F.pm,v 1.5 2008/02/23 01:38:04 drhyde Exp $
 
 package CPU::Emulator::Z80::Register8F;
 
@@ -30,7 +30,7 @@ where X can be any of S Z H P N C 5 or 3, where 5 and 3 are the
 un-named bits 5 and 3 of the register (0 being the least-significant
 bit).
 
-getX takes no parameters and returns a true or false value depending
+getX takes no parameters and returns 1 or 0 depending
 on the flag's status.
 
 setX if called with no parameters sets the flag true.  If called with
@@ -55,7 +55,7 @@ my %masks = (
 
 sub _get {
     my($self, $flag) = @_;
-    return $self->get() & $flag
+    return !!($self->get() & $flag)
 }
 sub _set {
     my($self, $flag, $value) = @_;

@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.24 2008/02/23 00:23:10 drhyde Exp $
+# $Id: Z80.pm,v 1.25 2008/02/23 01:38:04 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -373,11 +373,10 @@ my @TABLE_ROT = (qw(RLC RRC RL RR SLA SRA SLL SRL));
     0          => \&_NOP,
     0b00001000 => \&_EX_AF_AF,
     0b00010000 => \&_DJNZ,
-    0b00011000 => \&_JR_unconditonal,
-    (map { ($_ << 3) => sub {
-        my $c = $_ - 4;
-        _check_cond($_[0], $TABLE_CC[$c]) &&
-        _JR_unconditonal(@_);
+    0b00011000 => \&_JR_unconditional,
+    (map { my $y = $_; ($_ << 3) => sub {
+        _check_cond($_[0], $TABLE_CC[$y - 4]) &&
+        _JR_unconditional(@_);
     } } (4 .. 7)),
     (map { my $p = $_; 0b00000001 | ($p << 4 ) => sub {
         _LD_r16_imm(shift(), $TABLE_RP[$p], @_) # LD rp[p], nn
@@ -517,7 +516,13 @@ sub _execute {
 
 sub _check_cond {
     my($self, $cond) = @_;
-    die("_check_cond NYI\n");
+    my $f = $self->register('F');
+    return
+           $cond eq 'NC' ? !$f->getC() :
+           $cond eq 'C'  ?  $f->getC() :
+           $cond eq 'NZ' ? !$f->getZ() :
+           $cond eq 'Z'  ?  $f->getZ() :
+           die("_check_cond: condition $cond NYI");
 }
 
 sub _ADD_r16_r16 {
@@ -537,8 +542,10 @@ sub _DJNZ {
     $self->register('B')->dec();         # decrement B and ...
     if($self->register('B')->get()) {    # jump if not zero
         _LD_r8_imm($self, 'Z', $offset);
-        $offset = $self->register('Z')->getsigned();
-        $self->register('PC')->set($self->register('PC')->get() + $offset);
+        $self->register('PC')->set(
+            $self->register('PC')->get() +
+            $self->register('Z')->getsigned()
+        );
     }
     _LD_r8_r8($self, 'F', 'W');          # restore flags
 }
@@ -547,13 +554,26 @@ sub _EX_AF_AF {
 }
 sub _HALT { shift()->register('PC')->dec(); sleep(1) }
 sub _INC {
-    # flag-twiddling is dealt with in the register's dec() method
     my($self, $r) = @_;
-    $self->register($r)->inc();
+    if($r eq '(HL)') {
+        my $addr = $self->register('HL')->get();
+        my $value = $self->memory()->peek($addr) + 1;
+        $self->memory()->poke($addr, $value);
+        $self->register('F')->set3($value & 0b1000);
+        $self->register('F')->set5($value & 0b100000);
+        # FIXME - flags are just plain wrong
+    } else {
+        # flag-twiddling is dealt with in the register's inc() method
+        $self->register($r)->inc();
+    }
 }
 sub _JR_unconditional {
-    my $self = shift;
-    die("_JR_unconditional NYI\n");
+    my($self, $offset) = @_;
+    _LD_r8_imm($self, 'Z', $offset);
+    $self->register('PC')->set(
+        $self->register('PC')->get() +
+        $self->register('Z')->getsigned()
+    );
 }
 sub _JP_unconditional {
     my $self = shift;
@@ -629,10 +649,75 @@ sub _RRCA {
     $self->register('F')->set3($self->register('A')->get() & 0b1000);
     $self->register('F')->setC($self->register('A')->get() & 0x80);
 }
-sub _RLA { }
-sub _RRA { }
-sub _DAA { }
-sub _CPL { }
+sub _RLA {
+    my $self = shift;
+    my $msb = $self->register('A')->get() & 0b10000000;
+    $self->register('A')->set(
+        (($self->register('A')->get() & 0b01111111) << 1) |
+        $self->register('F')->getC()
+    );
+    $self->register('F')->setC($msb);
+    $self->register('F')->resetH();
+    $self->register('F')->resetN();
+}
+sub _RRA {
+    my $self = shift;
+    my $lsb = $self->register('A')->get() & 1;
+    my $c = $self->register('F')->getC();
+    $self->register('A')->set(
+        (($self->register('A')->get() & 0b11111110) >> 1) |
+        ($c << 7)
+    );
+    $self->register('F')->setC($lsb);
+    $self->register('F')->resetH();
+    $self->register('F')->resetN();
+}
+sub _DAA {
+    # FIXME - this is broken
+    my $self = shift;
+    my $a = $self->register('A');
+    my $f = $self->register('F');
+    my $table = [
+        #   N C high H low  add Cafter
+        [qw(0 0 0-9  0 0-9  0   0)],
+        [qw(0 0 0-8  0 a-f  6   0)],
+        [qw(0 0 0-9  1 0-3  6   0)],
+        [qw(0 0 a-f  0 0-9  60  1)],
+        [qw(0 0 9-f  0 a-f  66  1)],
+        [qw(0 0 a-f  1 0-3  66  1)],
+        [qw(0 1 0-2  0 0-9  60  1)],
+        [qw(0 1 0-2  0 a-f  66  1)],
+        [qw(0 1 0-3  1 0-3  66  1)],
+        [qw(1 0 0-9  0 0-9  0   0)],
+        [qw(1 0 0-8  1 6-f  fa  0)],
+        [qw(1 1 7-f  0 0-9  a0  1)],
+        [qw(1 1 6-f  1 6-f  9a  1)],
+    ];
+    foreach my $row (@{$table}) {
+        my @row = @{$row};
+        if(
+            $f->getN() == $row[0] &&
+            $f->getC() == $row[1] &&
+            sprintf('%x', ($a->get() >> 4) & 0x0F) =~ /^[$row[2]]$/ &&
+            $f->getH() == $row[3] &&
+            sprintf('%x', $a->get() & 0x0F) =~ /^[$row[4]]$/
+        ) {
+            $a->set(ALU_add8($f, $a->get(), hex($row[5])));
+            $f->setC($row[6]);
+            last;
+        }
+    }
+    $f->set3($a->get() & 0b1000);
+    $f->set5($a->get() & 0b100000);
+}
+sub _CPL {
+    my $self = shift;
+    $self->register('A')->set(~ $self->register('A')->get());
+    $self->register('F')->setH();
+    $self->register('F')->setN();
+    $self->register('F')->set3($self->register('A')->get() & 0b1000);
+    $self->register('F')->set5($self->register('A')->get() & 0b100000);
+}
 sub _SCF { }
 sub _CCF { }
 
