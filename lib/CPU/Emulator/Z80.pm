@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.30 2008/02/23 23:59:27 drhyde Exp $
+# $Id: Z80.pm,v 1.31 2008/02/24 02:15:46 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -599,8 +599,6 @@ sub _check_cond {
 
 sub _ADD_r16_r16 {
     my($self, $r1, $r2) = @_;
-    # $r1 = 'IX' if($r1 eq 'HL' && exists($self->{prefix_bytes}->[0]) && $self->{prefix_bytes}->[0] == 0xDD);
-    # $r1 = 'IY' if($r1 eq 'HL' && exists($self->{prefix_bytes}->[0]) && $self->{prefix_bytes}->[0] == 0xFD);
     $self->register($r1)->add($self->register($r2)->get());
 }
 sub _ADC_r8_r8 {
