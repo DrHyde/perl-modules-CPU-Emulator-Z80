@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.32 2008/02/24 20:00:52 drhyde Exp $
+# $Id: Z80.pm,v 1.33 2008/02/24 23:52:04 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -381,7 +381,7 @@ my @TABLE_BLI = (
             (map { 0b01000110 | ($_ << 3) => 1 } (0 .. 7)), # IM im[y]
             (map { 0b01000111 | ($_ << 3) => 1 } (0 .. 7)), # LD I/R,A;LD A,I/R;RRD;RLD;NOP
             (map { 0b10000000 | $_ => 1 } (0 .. 63)), # block instrs
-            # invalid instr, equiv to NOP (actually a NONI)
+            # invalid instr, equiv to NOP
             (map { $_ => 1 } ( 0b00000000 .. 0b00111111,
                                0b11000000 .. 0b11111111)),
           },
@@ -414,10 +414,7 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
     0xAE => 2, # XOR (IX + n)
     0xB6 => 2, # OR  (IX + n)
     0xBE => 2, # CP  (IX + n)
-    0xCB => {
-        # NB lengths in here do *not* include either prefix byte
-        (map { $_ => 2 } (0 .. 255)),
-    },
+    0xCB => { (map { $_ => 2 } (0 .. 255)) },
     0xDD => 1, # NOP
     0xED => 1, # NOP
     0xFD => 1, # NOP
@@ -522,36 +519,6 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
     0b11111001 => sub { _LD_r16_r16($_[0], 'SP', 'HL'); }, # LD SP, HL
 
     # and finally,  prefixed instructions
-    0xCB, {
-        (map { my $y = $_ >> 3; my $z = $_ & 7; 0b00000000 | $_ => sub {
-                $TABLE_ROT[$y]->($_[0], $TABLE_R[$z], $_[1]);
-        } } (0 .. 63)),
-        (map { my $y = $_ >> 3; my $z = $_ & 7; 0b01000000 | $_ => sub {
-                _BIT($_[0], $y, $TABLE_R[$z], $_[1]);
-        } } (0 .. 63)),
-        (map { my $y = $_ >> 3; my $z = $_ & 7; 0b10000000 | $_ => sub {
-                _RES($_[0], $y, $TABLE_R[$z], $_[1]);
-        } } (0 .. 63)),
-        (map { my $y = $_ >> 3; my $z = $_ & 7; 0b11000000 | $_ => sub {
-                _SET($_[0], $y, $TABLE_R[$z], $_[1]);
-        } } (0 .. 63)),
-    },
-    0xDD, {
-        (map { my $i = $_; $_ => sub {
-               _swap_regs($_[0], qw(HL IX));
-               $INSTR_DISPATCH{$i}->(@_);
-               _swap_regs($_[0], qw(HL IX));
-        } } (0 .. 255)),
-        0xCB => {
-            map { $_ => \&_NOP } (0 .. 255)
-            # map { my $i = $_; $_ => sub {
-            #       _swap_regs($_[0], qw(HL IX));
-            #       $INSTR_DISPATCH{0xDD}->{$i}->(@_);
-            #       _swap_regs($_[0], qw(HL IX));
-            # } } (0 .. 255),
-        },
-        0xFD => \&_NOP
-    },
     0xED, {
         (map { $_ => \&_NOP } ( 0b00000000 .. 0b00111111,
                                 0b11000000 .. 0b11111111)),
@@ -603,19 +570,43 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
         } (4 .. 7)),
 
     },
+    0xCB, {
+        (map { my $y = $_ >> 3; my $z = $_ & 7; 0b00000000 | $_ => sub {
+                $TABLE_ROT[$y]->($_[0], $TABLE_R[$z], $_[1]);
+        } } (0 .. 63)),
+        (map { my $y = $_ >> 3; my $z = $_ & 7; 0b01000000 | $_ => sub {
+                _BIT($_[0], $y, $TABLE_R[$z], $_[1]);
+        } } (0 .. 63)),
+        (map { my $y = $_ >> 3; my $z = $_ & 7; 0b10000000 | $_ => sub {
+                _RES($_[0], $y, $TABLE_R[$z], $_[1]);
+        } } (0 .. 63)),
+        (map { my $y = $_ >> 3; my $z = $_ & 7; 0b11000000 | $_ => sub {
+                _SET($_[0], $y, $TABLE_R[$z], $_[1]);
+        } } (0 .. 63)),
+    },
+    0xDD, {
+        (map { my $i = $_; $_ => sub {
+               $INSTR_DISPATCH{$i}->(@_);
+        } } (0 .. 255)),
+        0xFD => \&_NOP,
+        0xCB => {
+            # these are all DD CB offset OPCODE. Yuck
+            # the dispatcher calls DD->CB->offset passing the opcode
+            # as a param.  This fixes things.
+            map { my $d = $_; $_ => sub {
+                $INSTR_DISPATCH{0xCB}->{$_[1]}->($_[0], $d)
+            } } (0 .. 255)
+        },
+    },
     0xFD, {
         (map { my $i = $_; $_ => sub {
-               _swap_regs($_[0], qw(HL IY));
-               $INSTR_DISPATCH{$i}->(@_);
-               _swap_regs($_[0], qw(HL IY));
+               $INSTR_DISPATCH{0xDD}->{$i}->(@_);
         } } (0 .. 255)),
+        0xDD => \&_NOP,
         0xCB => {
-            map { $_ => \&_NOP } (0 .. 255)
-            # map { my $i = $_; $_ => sub {
-            #       _swap_regs($_[0], qw(HL IX));
-            #       $INSTR_DISPATCH{0xDD}->{$i}->(@_);
-            #       _swap_regs($_[0], qw(HL IX));
-            # } } (0 .. 255),
+            (map { my $i = $_; $_ => sub {
+                   $INSTR_DISPATCH{0xDD}->{0xCB}->{$i}->(@_);
+            } } (0 .. 255))
         }
     },
 );
@@ -642,7 +633,11 @@ sub _fetch {
     my $self = shift;
     my $pc = $self->register('PC')->get();
     
-    $self->register('R')->inc();
+    $self->register('R')->inc() # don't inc for DDCB and FDCB
+        unless(
+            $self->_got_prefix(0xCB) &&
+            ($self->_got_prefix(0xDD) || $self->_got_prefix(0xFD))
+        );
     my $byte = $self->memory()->peek($pc);
     my @bytes = ($byte);
 
@@ -672,21 +667,37 @@ sub _fetch {
 # execute an instruction. NB, the PC already points at the next instr
 sub _execute {
     my($self, $instr) = (shift(), shift());
-    # printf("_execute: 0x%02X (PC=0x%04X)\n", $instr, $self->register('PC')->get());
+    # printf(
+    #     "About to execute ".
+    #     join(' ', map { '%02x' } (@{$self->{prefix_bytes}}, $instr, @_)).
+    #     "\n",
+    #     @{$self->{prefix_bytes}}, $instr, @_
+    # );
     if(
         exists($self->{instr_dispatch_table}->{$instr}) &&
         ref($self->{instr_dispatch_table}->{$instr}) &&
         reftype($self->{instr_dispatch_table}->{$instr}) eq 'CODE'
     ) {
+        # use Data::Dump::Streamer;
+        # print Dump($self->{instr_dispatch_table}->{$instr});
+        _swap_regs($self, qw(HL IX)) if($self->_got_prefix(0xDD));
+        _swap_regs($self, qw(HL IY)) if($self->_got_prefix(0xFD));
         $self->{instr_dispatch_table}->{$instr}->($self, @_);
+        _swap_regs($self, qw(HL IY)) if($self->_got_prefix(0xFD));
+        _swap_regs($self, qw(HL IX)) if($self->_got_prefix(0xDD));
     } else {
-        warn(sprintf(
+        die(sprintf(
             "_execute: No entry in dispatch table for instr "
               .join(' ', map { "0x%02x" } (@{$self->{prefix_bytes}}, $instr))
               ." of known length, near addr 0x%04x\n",
             @{$self->{prefix_bytes}}, $instr, $self->register('PC')->get()
         ));
     }
+}
+
+sub _got_prefix {
+    my($self, $prefix) = @_;
+    return grep { $_ == $prefix } @{$self->{prefix_bytes}}
 }
 
 sub _check_cond {
@@ -1049,10 +1060,10 @@ sub _LD_r16_r16 {
 sub _LD_r8_r8 {
     my($self, $r1, $r2, $d) = @_;
     # print "_LD_r8_r8 $r1, $r2 $d\n" if($d);
-    if(defined($d) && $r2 eq '(HL)' && $r1 =~ /^[HL]/) { # LD H/L, (IX/IY+d)
-        $r1 .= ($self->{prefix_bytes}->[0] == 0xDD) ? 'IX' : 'IY';
-    } elsif(defined($d) && $r1 eq '(HL)' && $r2 =~ /^[HL]/) { # LD (IX/IY+d), H/L
-        $r2 .= ($self->{prefix_bytes}->[0] == 0xDD) ? 'IX' : 'IY';
+    if(defined($d) && $r2 eq '(HL)' && $r1 =~ /^[HL]$/) { # LD H/L, (IX/IY+d)
+        $r1 .= $self->_got_prefix(0xDD) ? 'IX' : 'IY';
+    } elsif(defined($d) && $r1 eq '(HL)' && $r2 =~ /^[HL]$/) { # LD (IX/IY+d), H/L
+        $r2 .= $self->_got_prefix(0xDD) ? 'IX' : 'IY';
     }
     my $addr = $self->register('HL')->get() + ALU_getsigned($d, 8);
     my @addr = ($addr & 0xFF, $addr >> 8);
@@ -1141,49 +1152,69 @@ sub _RRA {
 # and also diddle P/S/Z flags
 sub _cb_rot {
     my($self, $fn, $r, $d) = @_;
-    my @addr;
-    if($r eq '(HL)') {
-        @addr = map { $self->register($_)->get()} qw(L H);
-        _LD_r8_ind($self, 'W', @addr);
-        $r = 'W';
+
+    if(defined($d) && $r ne '(HL)') {
+        $r .= $self->_got_prefix(0xDD) ? 'IX' : 'IY' if($r =~ /^[HL]$/);
+        my $realr = $r;
+        $r = '(HL)';
+        _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
+        _swap_regs($self, $r, 'A') if($r ne 'A'); # preserve A, mv r to A
+        $fn->($self);
+        _swap_regs($self, $r, 'A') if($r ne 'A'); # swap back again
+        _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+        _LD_r8_r8($self, $realr, 'W');
+    } else {
+        _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
+        _swap_regs($self, $r, 'A') if($r ne 'A'); # preserve A, mv r to A
+        $fn->($self);
+        _swap_regs($self, $r, 'A') if($r ne 'A'); # swap back again
+        _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
     }
-    _swap_regs($self, $r, 'A') if($r ne 'A'); # preserve A, mv r to A
-    $fn->($self);
-    _swap_regs($self, $r, 'A') if($r ne 'A'); # swap back again
-    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
+
     # now frob extra flags
     $self->register('F')->setP(ALU_parity($self->register($r)->get()));
     $self->register('F')->setS($self->register($r)->get() & 0x80);
     $self->register('F')->setZ($self->register($r)->get() == 0);
 }
-sub _RRC { my($self, $r, $d) = @_; _cb_rot($self, \&_RRCA, $r, $d); }
-sub _RLC { my($self, $r, $d) = @_; _cb_rot($self, \&_RLCA, $r, $d); }
+sub _RLC {
+    my($self, $r, $d) = @_;
+    $self->_cb_rot(\&_RLCA, $r, $d);
+}
+sub _RRC {
+    my($self, $r, $d) = @_;
+    _cb_rot($self, \&_RRCA, $r, $d);
+}
 sub _RL {
     my($self, $r, $d) = @_;
-    _cb_rot($self, \&_RLA, $r, $d); # also loads W with (HL) if needed
-    $r = 'W' if($r eq '(HL)');
-    # these two aren't done by _cb_rot
-    $self->register('F')->set5($self->register($r)->get() &0b100000);
-    $self->register('F')->set3($self->register($r)->get() &0b1000);
+    _cb_rot($self, \&_RLA, $r, $d);
+
+    # extra flags not done by _cb_rot
+    $r .= $self->_got_prefix(0xDD) ? 'IX' :
+          $self->_got_prefix(0xFD) ? 'IY' : ''
+        if($r =~ /^[HL]$/);
+    $self->register('F')->set5($self->register($r)->get() & 0b100000);
+    $self->register('F')->set3($self->register($r)->get() & 0b1000);
 }
 sub _RR {
     my($self, $r, $d) = @_;
-    _cb_rot($self, \&_RRA, $r, $d); # also loads W with (HL) if needed
-    $r = 'W' if($r eq '(HL)');
-    $self->register('F')->set5($self->register($r)->get() &0b100000);
-    $self->register('F')->set3($self->register($r)->get() &0b1000);
+    _cb_rot($self, \&_RRA, $r, $d);
+    $r .= $self->_got_prefix(0xDD) ? 'IX' :
+          $self->_got_prefix(0xFD) ? 'IY' : ''
+        if($r =~ /^[HL]$/);
+    $self->register('F')->set5($self->register($r)->get() & 0b100000);
+    $self->register('F')->set3($self->register($r)->get() & 0b1000);
 }
 sub _SLA {
     my($self, $r, $d) = @_;
-    my @addr;
-    if($r eq '(HL)') {
-        @addr = map { $self->register($_)->get()} qw(L H);
-        _LD_r8_ind($self, 'W', @addr);
-        $r = 'W';
-    }
+    if(defined($d)) { print "LD $r, SLA (IX + $d)\n" }
 
+    _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
+    
     $self->register('F')->setC($self->register($r)->get() & 0x80);
+
     $self->register($r)->set($self->register($r)->get() << 1);
+    _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+
     $self->register('F')->setZ($self->register($r)->get() == 0);
     $self->register('F')->set5($self->register($r)->get() & 0b100000);
     $self->register('F')->set3($self->register($r)->get() & 0b1000);
@@ -1191,35 +1222,28 @@ sub _SLA {
     $self->register('F')->setS($self->register($r)->get() & 0x80);
     $self->register('F')->resetH();
     $self->register('F')->resetN();
-    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
 }
 sub _SLL {
     my($self, $r, $d) = @_;
-    my @addr;
-    if($r eq '(HL)') {
-        @addr = map { $self->register($_)->get()} qw(L H);
-        _LD_r8_ind($self, 'W', @addr);
-        $r = 'W';
-    }
+    _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
     _SLA(@_);
     $self->register($r)->set($self->register($r)->get() | 1);
+    _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+
     $self->register('F')->setP(ALU_parity($self->register($r)->get()));
-    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
 }
 sub _SRA {
     my($self, $r, $d) = @_;
-    my @addr;
-    if($r eq '(HL)') {
-        @addr = map { $self->register($_)->get()} qw(L H);
-        _LD_r8_ind($self, 'W', @addr);
-        $r = 'W';
-    }
+
+    _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
 
     $self->register('F')->setC($self->register($r)->get() & 1);
     $self->register($r)->set(
         ($self->register($r)->get() & 0x80) |
         ($self->register($r)->get() >> 1)
     );
+    _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+
     $self->register('F')->setZ($self->register($r)->get() == 0);
     $self->register('F')->set5($self->register($r)->get() & 0b100000);
     $self->register('F')->set3($self->register($r)->get() & 0b1000);
@@ -1227,21 +1251,17 @@ sub _SRA {
     $self->register('F')->setS($self->register($r)->get() & 0x80);
     $self->register('F')->resetH();
     $self->register('F')->resetN();
-    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
 }
 sub _SRL {
     my($self, $r, $d) = @_;
-    my @addr;
-    if($r eq '(HL)') {
-        @addr = map { $self->register($_)->get()} qw(L H);
-        _LD_r8_ind($self, 'W', @addr);
-        $r = 'W';
-    }
+
+    _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
     _SRA(@_);
     $self->register($r)->set($self->register($r)->get() & 0x7F);
+    _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+
     $self->register('F')->setS($self->register($r)->get() & 0x80);
     $self->register('F')->setP(ALU_parity($self->register($r)->get()));
-    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
 }
 sub _DAA {
     my $self = shift;

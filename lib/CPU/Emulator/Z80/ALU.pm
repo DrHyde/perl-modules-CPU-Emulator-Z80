@@ -1,4 +1,4 @@
-# $Id: ALU.pm,v 1.8 2008/02/24 20:00:53 drhyde Exp $
+# $Id: ALU.pm,v 1.9 2008/02/24 23:52:05 drhyde Exp $
 
 package CPU::Emulator::Z80::ALU;
 
@@ -171,7 +171,7 @@ sub ALU_parity {
 
 Takes two parameters, a value and a number of bits.  Decodes
 the value 2s-complement-ly for the appropriate number of bits,
-returning a signed value.
+returning a signed value.  undef is turned into 0.
 
 No flags reigster needed
 

@@ -249,6 +249,14 @@ CB 2C;SRA H
 CB 2D;SRA L                   
 CB 2E;SRA (HL)                
 CB 2F;SRA A                   
+CB 30;SLL B
+CB 31;SLL C
+CB 32;SLL D
+CB 33;SLL E
+CB 34;SLL H
+CB 35;SLL L
+CB 36;SLL (HL)
+CB 37;SLL A
 CB 38;SRL B                   
 CB 39;SRL C                   
 CB 3A;SRL D                   

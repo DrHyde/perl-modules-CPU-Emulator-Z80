@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.12 2008/02/24 20:00:54 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.13 2008/02/24 23:52:05 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -104,7 +104,7 @@ foreach my $yamlfile (@tests) {
         )
     )/x) {
         print "ok $test # skip ".uc($y->[0]->{name})." I/O or interrupt\n";
-    } elsif(uc($y->[0]->{name}) =~ /^[DF]DCB/) {
+    } elsif($errors && !$ENV{DEBUG} && uc($y->[0]->{name}) =~ /^[DF]DCB/) {
         print "ok $test # skip ".uc($y->[0]->{name})." DD CB or FD CB prefix\n";
     } elsif(uc($y->[0]->{name}) =~ /^(DDFD|FDFF)/) {
         print "ok $test # skip ".uc($y->[0]->{name})." DD FD or FD DD prefix\n";
