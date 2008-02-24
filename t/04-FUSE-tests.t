@@ -1,11 +1,13 @@
-# $Id: 04-FUSE-tests.t,v 1.11 2008/02/23 23:59:27 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.12 2008/02/24 20:00:54 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
 $^W = 1;
 
+my %ARGV = map { $_ => 1 } @ARGV;
 opendir(my $dir, 't/fuse-tests') || die("Can't read t/fuse-tests/\n");
-my @tests = map { s/\.in\.yml$//; "t/fuse-tests/$_"; }
+my @tests = grep { $ARGV{"$_.in.yml"} || !keys(%ARGV) }
+            map { s/\.in\.yml$//; "t/fuse-tests/$_"; }
             grep { -f "t/fuse-tests/$_" && /\.in\.yml$/ }
             readdir($dir);
 closedir($dir);
@@ -44,7 +46,7 @@ foreach my $yamlfile (@tests) {
             bytes => "\xDE\xAD\xBE\xEF" x (65536 / 4)
         )
     );
-    foreach my $r (grep { $_ ne 'I' } keys %{$y->[0]->{registers}}) {
+    foreach my $r (keys %{$y->[0]->{registers}}) {
         $cpu->register($r)->set($y->[0]->{registers}->{$r});
     }
     foreach my $addr (keys %{$y->[0]->{mem}}) {
@@ -60,7 +62,7 @@ foreach my $yamlfile (@tests) {
 
     $y = YAML::Tiny->read("$yamlfile.expected.yml");
     my $errors = "";
-    foreach my $r (grep { $_ ne 'I' } keys %{$y->[0]->{registers}}) {
+    foreach my $r (keys %{$y->[0]->{registers}}) {
         if($cpu->register($r)->get() != $y->[0]->{registers}->{$r}) {
             $errors .=
               "# Register $r differs.".
@@ -89,8 +91,23 @@ foreach my $yamlfile (@tests) {
                    "#\n# finished with\n".$cpu->format_registers()
     }
 
-    if(uc($y->[0]->{name}) =~ /^DB/) {
+    if(uc($y->[0]->{name}) =~ /^(
+        DB|
+        ED(
+          4[015689D]|
+          5[01578DEF]|
+          6[0568D]|
+          7[058D]|
+          A[23AB]|
+          B[23AB]|
+          HLAGH
+        )
+    )/x) {
         print "ok $test # skip ".uc($y->[0]->{name})." I/O or interrupt\n";
+    } elsif(uc($y->[0]->{name}) =~ /^[DF]DCB/) {
+        print "ok $test # skip ".uc($y->[0]->{name})." DD CB or FD CB prefix\n";
+    } elsif(uc($y->[0]->{name}) =~ /^(DDFD|FDFF)/) {
+        print "ok $test # skip ".uc($y->[0]->{name})." DD FD or FD DD prefix\n";
     } else {
         print ''.($errors ? 'not ' : '')."ok $test -  \t".uc($y->[0]->{name}).": ".
             (do {

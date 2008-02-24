@@ -1,7 +1,7 @@
 use strict;
 $^W = 1;
 
-use Test::More tests => 38;
+use Test::More tests => 39;
 
 use CPU::Emulator::Z80;
 
@@ -16,18 +16,18 @@ $cpu = CPU::Emulator::Z80->new();
 ok($cpu->memory()->isa('CPU::Emulator::Memory::Banked'),
    "default memory type is Banked");
 
-foreach (qw(A B C D E F R HL IX IY PC SP A_ B_ C_ D_ E_ F_ HL_)) {
+foreach (qw(A B C D E F R HL IX IY PC SP A_ B_ C_ D_ E_ F_ HL_ I)) {
     ok($cpu->register($_)->get() == 0, "register $_ defaults to 0");
 }
 
 my $v = 0x0A;
-foreach (qw(A B C D E F R HL IX IY PC SP A_ B_ C_ D_ E_ F_ HL_)) {
+foreach (qw(A B C D E F R HL IX IY PC SP A_ B_ C_ D_ E_ F_ HL_ I)) {
     $cpu->register($_)->set($v++);
 }
 $v = 0x0A;
 is_deeply(
     $cpu->registers(),
-    { map { $_ => $v++ } qw(A B C D E F R HL IX IY PC SP A_ B_ C_ D_ E_ F_ HL_) },
+    { map { $_ => $v++ } qw(A B C D E F R HL IX IY PC SP A_ B_ C_ D_ E_ F_ HL_ I) },
     "registers() method works"
 );
     
@@ -52,7 +52,7 @@ $cpu->status($status);
 $v = 0x0A;
 is_deeply(
     $cpu->registers(),
-    { map { $_ => $v++ } qw(A B C D E F R HL IX IY PC SP A_ B_ C_ D_ E_ F_ HL_) },
+    { map { $_ => $v++ } qw(A B C D E F R HL IX IY PC SP A_ B_ C_ D_ E_ F_ HL_ I) },
     "status() serialises and restores correctly ..."
 );
 ok($cpu->status() eq $status, "... and round-trips");

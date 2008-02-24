@@ -1,4 +1,4 @@
-# $Id: ALU.pm,v 1.7 2008/02/23 23:24:44 drhyde Exp $
+# $Id: ALU.pm,v 1.8 2008/02/24 20:00:53 drhyde Exp $
 
 package CPU::Emulator::Z80::ALU;
 
@@ -22,8 +22,7 @@ CPU::Emulator::Z80::ALU
 =head1 DESCRIPTION
 
 This mix-in provides functions for addition and subtraction on a
-Z80, settings flags and doing twos-complement jibber-jabber.  It
-provides both 8- and 16-bit versions of most of its functions.
+Z80, settings flags and doing twos-complement jibber-jabber.
 
 =head1 FUNCTIONS
 
@@ -34,7 +33,12 @@ to the parameters listed, unless otherwise stated:
 
 =head2 ALU_add8/ALU_add16
 
-Takes two 8/16-bit values and returns their 8/16-bit sum.
+Takes two 8/16-bit values and returns their 8/16-bit sum, and for
+add16, a
+third parameter indicating whether this was really called as ADC.
+
+add16 doesn't frob the S, Z or P flags unless that extra parameter
+is true.
 
 =cut
 
@@ -58,7 +62,7 @@ sub ALU_add8 {
     return $result;
 }
 sub ALU_add16 {
-    my($flags, $op1, $op2) = @_;
+    my($flags, $op1, $op2, $adc) = @_;
     my $halfcarry = (($op1 & 0x0FFF) + ($op2 & 0x0FFF)) & 0x1000;
     my $result = $op1 + $op2;
     $flags->setC($result & 0x10000);
@@ -67,13 +71,18 @@ sub ALU_add16 {
     $flags->set3($result & 0x800);
     $flags->setH($halfcarry);
     $flags->set5($result & 0x2000);
-    # my $carry14to15 =
-    #     (($op1 & 0b0111111111111111) + ($op2 & 0b0111111111111111)) &
-    #     0b1000000000000000;
-    # $flags->setP(
-    #     (!$flags->getC() &&  $carry14to15) ||
-    #     ($flags->getC()  && !$carry14to15)
-    # );
+
+    if($adc) { # only update these if this is really ADC
+        my $carry14to15 =
+            (($op1 & 0b0111111111111111) + ($op2 & 0b0111111111111111)) &
+            0b1000000000000000;
+        $flags->setP(
+            (!$flags->getC() &&  $carry14to15) ||
+            ($flags->getC()  && !$carry14to15)
+        );
+        $flags->setZ($result == 0);
+        $flags->setS($result & 0x8000);
+    }
     return $result;
 }
 
@@ -91,13 +100,34 @@ sub ALU_sub8 {
     $flags->setZ($result == 0);
     $flags->setC($op2 > $op1);
     $flags->set3($result & 0b1000);
-    $flags->setH(($op2 & 0x0F) > ($op1 & 0x0F));
+    $flags->setH(($op2 & 0b1111) > ($op1 & 0b1111));
+    $flags->setP(
+        (!$flags->getC() && (($op2 & 0b1111111) > ($op1 & 0b1111111))) ||
+        ($flags->getC()  && !(($op2 & 0b1111111) > ($op1 & 0b1111111)))
+    );
     $flags->set5($result & 0b100000);
     $flags->setS($result & 0b10000000);
     return $result;
 }
 
-=head2 ALU_inc8/ALU/dec8
+sub ALU_sub16 {
+    my($flags, $op1, $op2) = @_;
+    my $result = ($op1 - $op2) & 0xFFFF;
+    $flags->setN();
+    $flags->setZ($result == 0);
+    $flags->setC($op2 > $op1);
+    $flags->set3($result & 0b100000000000);
+    $flags->setH(($op2 & 0b111111111111) > ($op1 & 0b111111111111));
+    $flags->setP(
+        (!$flags->getC() && (($op2 & 0b111111111111111) > ($op1 & 0b111111111111111))) ||
+        ($flags->getC()  && !(($op2 & 0b111111111111111) > ($op1 & 0b111111111111111)))
+    );
+    $flags->set5($result & 0b10000000000000);
+    $flags->setS($result & 0b1000000000000000);
+    return $result;
+}
+
+=head2 ALU_inc8/ALU_dec8
 
 Take a single 8-bit value and incremement/decrement it, returning
 the result.  They're just wrappers around add8/sub8 that preserve
@@ -149,6 +179,7 @@ No flags reigster needed
 
 sub ALU_getsigned {
     my($value, $bits) = @_;
+    $value ||= 0; # turn undef into 0
     # if MSB == 0, just return the value
     return $value unless($value & (2 ** ($bits - 1)));
     # algorithm is:

@@ -1,4 +1,4 @@
-# $Id: Register16.pm,v 1.5 2008/02/23 20:07:01 drhyde Exp $
+# $Id: Register16.pm,v 1.6 2008/02/24 20:00:53 drhyde Exp $
 
 package CPU::Emulator::Z80::Register16;
 
@@ -102,8 +102,22 @@ Add the specified value to the register, frobbing flags
 =cut
 
 sub add {
+    my($self, $op, $adc) = @_;
+    # $adc tells us if this is really ADC
+    $self->set(
+        ALU_add16($self->cpu()->register('F'), $self->get(), $op, $adc)
+    );
+}
+
+=head2 sub
+
+Subtract the specified value from the register.
+
+=cut
+
+sub sub {
     my($self, $op) = @_;
-    $self->set(ALU_add16($self->cpu()->register('F'), $self->get(), $op));
+    $self->set(ALU_sub16($self->cpu()->register('F'), $self->get(), $op));
 }
 
 =head2 inc, dec
