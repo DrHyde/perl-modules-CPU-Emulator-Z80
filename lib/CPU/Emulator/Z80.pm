@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.35 2008/02/25 21:01:44 drhyde Exp $
+# $Id: Z80.pm,v 1.36 2008/02/25 21:17:38 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -590,13 +590,12 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
         } } (0 .. 255)),
         0xED => \&_NOP,
         0xDD => {
-            # 0b00000000 => 'stop', # handled by run()-loop
-            0b11111111 => sub { _LD_r8_imm($_[0], 'W', 1); } #purely for testing!
+            0b00000000 => sub { $_[0]->{STOPREACHED} = 1 },
         },
         0xFD => {
             map { my $i = $_; $_ => sub {
                 $INSTR_DISPATCH{0xDD}->{0xDD}->{$i}->(@_)
-            } } (1 .. 255)
+            } } (0 .. 255)
         },
         0xCB => {
             # these are all DD CB offset OPCODE. Yuck
@@ -613,12 +612,12 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
         0xDD => {
             map { my $i = $_; $_ => sub {
                 $INSTR_DISPATCH{0xDD}->{0xDD}->{$i}->(@_)
-            } } (1 .. 255)
+            } } (0 .. 255)
         },
         0xFD => {
             map { my $i = $_; $_ => sub {
                 $INSTR_DISPATCH{0xDD}->{0xDD}->{$i}->(@_)
-            } } (1 .. 255)
+            } } (0 .. 255)
         },
         0xCB => {
             map { my $i = $_; $_ => sub {
@@ -689,13 +688,6 @@ sub _fetch {
 sub _execute {
     my($self, $instr) = (shift(), shift());
     if(
-        @{$self->{prefix_bytes}} == 2 &&
-        ($self->{prefix_bytes}->[0] == 0xDD || $self->{prefix_bytes}->[0] == 0xFD) &&
-        ($self->{prefix_bytes}->[1] == 0xDD || $self->{prefix_bytes}->[1] == 0xFD) &&
-        $instr == 0
-    ) { 
-        $self->{STOPREACHED} = 1;
-    } elsif(
         exists($self->{instr_dispatch_table}->{$instr}) &&
         ref($self->{instr_dispatch_table}->{$instr}) &&
         reftype($self->{instr_dispatch_table}->{$instr}) eq 'CODE'
@@ -1395,6 +1387,21 @@ sub _swap_regs {
     $self->register($r2)->set($temp);
 }
 
+=head1 EXTRA INSTRUCTIONS
+
+Whenever any combination of two of the 0xDD and 0xFD prefixes are
+met, behaviour deviates from that of a normal Z80 and instead
+depends on the following byte:
+
+=head2 0x00 - STOP
+
+The run() method stops, even if the desired number of instructions
+has not yet been reached.
+
+=head2 anything else
+
+Fatal error.
+
 =head1 PROGRAMMING THE Z80
 
 I recommend "Programming the Z80" by Rodnay Zaks.  This excellent
@@ -1411,8 +1418,10 @@ I/O and interrupt-ish instructions are not yet implemented.
 The DDCB- and FDCB-prefixed instructions are not yet implemented.
 
 The DDFD- and FDDD-prefixed instructions (the "use this index
-register - no, wait, I meant the other one" prefixes) are silly
-and not yet implemented.
+register - no, wait, I meant the other one" prefixes) and the DDDD-
+and FDFD-prefixed instructions (the "use this index register, no
+really, I mean it, pleeeeease"i prefixes) are silly,
+and have been replaced - see "Extra Instructions" above.
 
 =head1 FEEDBACK
 
