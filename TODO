@@ -1,0 +1,10 @@
+FDDD / DDFD prefixes for private instrs
+  00: STOP
+  01: SLEEP
+  0b01yyyzzz: MUL8
+  0b10yyyzzz: DIV8
+
+0.1s clock ticker
+kb input select() loop
+get an assembler for the host - google://z80+assembler+(unix|perl)
+get an assembler in Z80 source, ROMify it
