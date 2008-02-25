@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.33 2008/02/24 23:52:04 drhyde Exp $
+# $Id: Z80.pm,v 1.34 2008/02/25 01:11:55 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -588,6 +588,8 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
         (map { my $i = $_; $_ => sub {
                $INSTR_DISPATCH{$i}->(@_);
         } } (0 .. 255)),
+        0xDD => \&_NOP,
+        0xED => \&_NOP,
         0xFD => \&_NOP,
         0xCB => {
             # these are all DD CB offset OPCODE. Yuck
@@ -599,14 +601,12 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
         },
     },
     0xFD, {
-        (map { my $i = $_; $_ => sub {
-               $INSTR_DISPATCH{0xDD}->{$i}->(@_);
-        } } (0 .. 255)),
+        (map{my $i=$_; $_=>sub {$INSTR_DISPATCH{$i}->(@_)}} (0 .. 255)),
         0xDD => \&_NOP,
+        0xED => \&_NOP,
+        0xFD => \&_NOP,
         0xCB => {
-            (map { my $i = $_; $_ => sub {
-                   $INSTR_DISPATCH{0xDD}->{0xCB}->{$i}->(@_);
-            } } (0 .. 255))
+            map { $_=>$INSTR_DISPATCH{0xDD}->{0xCB}->{$_} } ( 0 .. 255)
         }
     },
 );
