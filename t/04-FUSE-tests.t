@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.13 2008/02/24 23:52:05 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.14 2008/02/25 21:01:44 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -9,7 +9,7 @@ opendir(my $dir, 't/fuse-tests') || die("Can't read t/fuse-tests/\n");
 my @tests = grep { $ARGV{"$_.in.yml"} || !keys(%ARGV) }
             map { s/\.in\.yml$//; "t/fuse-tests/$_"; }
             grep { -f "t/fuse-tests/$_" && /\.in\.yml$/ }
-            readdir($dir);
+            grep { $_ !~ /^(ddfd|fddd)/ } readdir($dir);
 closedir($dir);
 
 print "1..".scalar(@tests)."\n";
@@ -91,7 +91,7 @@ foreach my $yamlfile (@tests) {
                    "#\n# finished with\n".$cpu->format_registers()
     }
 
-    if(uc($y->[0]->{name}) =~ /^(
+    if($errors && uc($y->[0]->{name}) =~ /^(
         DB|
         ED(
           4[015689D]|
@@ -99,15 +99,12 @@ foreach my $yamlfile (@tests) {
           6[0568D]|
           7[058D]|
           A[23AB]|
-          B[23AB]|
-          HLAGH
+          B[23AB]
         )
     )/x) {
         print "ok $test # skip ".uc($y->[0]->{name})." I/O or interrupt\n";
-    } elsif($errors && !$ENV{DEBUG} && uc($y->[0]->{name}) =~ /^[DF]DCB/) {
+    } elsif($errors && $ENV{SKIP_DDCB} && uc($y->[0]->{name}) =~ /^[DF]DCB/) {
         print "ok $test # skip ".uc($y->[0]->{name})." DD CB or FD CB prefix\n";
-    } elsif(uc($y->[0]->{name}) =~ /^(DDFD|FDFF)/) {
-        print "ok $test # skip ".uc($y->[0]->{name})." DD FD or FD DD prefix\n";
     } else {
         print ''.($errors ? 'not ' : '')."ok $test -  \t".uc($y->[0]->{name}).": ".
             (do {

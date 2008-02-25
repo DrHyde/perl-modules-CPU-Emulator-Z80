@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.34 2008/02/25 01:11:55 drhyde Exp $
+# $Id: Z80.pm,v 1.35 2008/02/25 21:01:44 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -414,10 +414,10 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
     0xAE => 2, # XOR (IX + n)
     0xB6 => 2, # OR  (IX + n)
     0xBE => 2, # CP  (IX + n)
-    0xCB => { (map { $_ => 2 } (0 .. 255)) },
-    0xDD => 1, # NOP
     0xED => 1, # NOP
-    0xFD => 1, # NOP
+    0xCB => { map { $_ => 2 } (0 .. 255) },
+    0xDD => { map { $_ => 1 } (0 .. 255) }, # magic
+    0xFD => { map { $_ => 1 } (0 .. 255) }, # magic
 };
 
 # these are all passed a list of parameter bytes
@@ -588,9 +588,16 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
         (map { my $i = $_; $_ => sub {
                $INSTR_DISPATCH{$i}->(@_);
         } } (0 .. 255)),
-        0xDD => \&_NOP,
         0xED => \&_NOP,
-        0xFD => \&_NOP,
+        0xDD => {
+            # 0b00000000 => 'stop', # handled by run()-loop
+            0b11111111 => sub { _LD_r8_imm($_[0], 'W', 1); } #purely for testing!
+        },
+        0xFD => {
+            map { my $i = $_; $_ => sub {
+                $INSTR_DISPATCH{0xDD}->{0xDD}->{$i}->(@_)
+            } } (1 .. 255)
+        },
         0xCB => {
             # these are all DD CB offset OPCODE. Yuck
             # the dispatcher calls DD->CB->offset passing the opcode
@@ -602,11 +609,21 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
     },
     0xFD, {
         (map{my $i=$_; $_=>sub {$INSTR_DISPATCH{$i}->(@_)}} (0 .. 255)),
-        0xDD => \&_NOP,
         0xED => \&_NOP,
-        0xFD => \&_NOP,
+        0xDD => {
+            map { my $i = $_; $_ => sub {
+                $INSTR_DISPATCH{0xDD}->{0xDD}->{$i}->(@_)
+            } } (1 .. 255)
+        },
+        0xFD => {
+            map { my $i = $_; $_ => sub {
+                $INSTR_DISPATCH{0xDD}->{0xDD}->{$i}->(@_)
+            } } (1 .. 255)
+        },
         0xCB => {
-            map { $_=>$INSTR_DISPATCH{0xDD}->{0xCB}->{$_} } ( 0 .. 255)
+            map { my $i = $_; $_ => sub {
+                $INSTR_DISPATCH{0xDD}->{0xCB}->{$i}->(@_)
+            } } (0 .. 255)
         }
     },
 );
@@ -616,7 +633,7 @@ sub run {
     my $instrs_to_execute = -1;
     $instrs_to_execute = shift() if(@_);
 
-    while($instrs_to_execute) {
+    RUNLOOP: while($instrs_to_execute) {
         $instrs_to_execute--;
         $self->{instr_length_table} = \%INSTR_LENGTHS;
         $self->{instr_dispatch_table} = \%INSTR_DISPATCH;
@@ -625,6 +642,10 @@ sub run {
         delete $self->{instr_length_table};
         delete $self->{instr_dispatch_table};
         delete $self->{prefix_bytes};
+        if($self->{STOPREACHED}) {
+            delete $self->{STOPREACHED};
+            last RUNLOOP;
+        }
     }
 }
 
@@ -667,19 +688,18 @@ sub _fetch {
 # execute an instruction. NB, the PC already points at the next instr
 sub _execute {
     my($self, $instr) = (shift(), shift());
-    # printf(
-    #     "About to execute ".
-    #     join(' ', map { '%02x' } (@{$self->{prefix_bytes}}, $instr, @_)).
-    #     "\n",
-    #     @{$self->{prefix_bytes}}, $instr, @_
-    # );
     if(
+        @{$self->{prefix_bytes}} == 2 &&
+        ($self->{prefix_bytes}->[0] == 0xDD || $self->{prefix_bytes}->[0] == 0xFD) &&
+        ($self->{prefix_bytes}->[1] == 0xDD || $self->{prefix_bytes}->[1] == 0xFD) &&
+        $instr == 0
+    ) { 
+        $self->{STOPREACHED} = 1;
+    } elsif(
         exists($self->{instr_dispatch_table}->{$instr}) &&
         ref($self->{instr_dispatch_table}->{$instr}) &&
         reftype($self->{instr_dispatch_table}->{$instr}) eq 'CODE'
     ) {
-        # use Data::Dump::Streamer;
-        # print Dump($self->{instr_dispatch_table}->{$instr});
         _swap_regs($self, qw(HL IX)) if($self->_got_prefix(0xDD));
         _swap_regs($self, qw(HL IY)) if($self->_got_prefix(0xFD));
         $self->{instr_dispatch_table}->{$instr}->($self, @_);

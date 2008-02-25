@@ -2661,3 +2661,4 @@ t/fuse-tests/testnames
 t/fuse-tests/testinstrs
 lib/CPU/Emulator/Z80/Register16SP.pm
 t/06-register16sp-methods.t
+t/07-magic-instructions.t
