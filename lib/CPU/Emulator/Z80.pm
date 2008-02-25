@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.36 2008/02/25 21:17:38 drhyde Exp $
+# $Id: Z80.pm,v 1.37 2008/02/25 23:39:54 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -747,44 +747,57 @@ sub _ADD_r8_r8 {
     _LD_r8_indHL($self, 'W', $d) if($r2 eq '(HL)');
     $self->register($r1)->add($self->register($r2)->get() + $c);
 }
+sub _RES { _RES_SET($_[0], 0, @_[1 .. $#_]); }
+sub _SET { _RES_SET($_[0], 1, @_[1 .. $#_]); }
+sub _RES_SET {
+    my($self, $value, $bit, $r, $d) = @_;
+
+    if(defined($d) && $r ne '(HL)') { # weirdo DDCB*
+        my $realr = $r;
+        $realr .= $self->_got_prefix(0xDD) ? 'IX' : 'IY'
+            if($realr =~ /^[HL]$/);
+        $r = '(HL)';
+        _LD_r8_indHL($self, 'W', $d);
+        $self->register($r)->set(            # RES by default
+            $self->register($r)->get() & (255 - 2**$bit)
+        );
+        $self->register($r)->set(            # SET if asked to
+             $self->register($r)->get() | (2**$bit)
+        ) if($value);
+        _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+        _LD_r8_r8($self, $realr, 'W');
+    } else {
+        _LD_r8_indHL($self, 'W', $d);
+        $self->register($r)->set(            # RES by default
+            $self->register($r)->get() & (255 - 2**$bit)
+        );
+        $self->register($r)->set(            # SET if asked to
+             $self->register($r)->get() | (2**$bit)
+        ) if($value);
+        _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+    }
+
+}
 sub _BIT {
     my($self, $bit, $r, $d) = @_; # $d is for DDCB/FFCB - NYI
-    if($r eq '(HL)') {
-        my @addr = map { $self->register($_)->get()} qw(L H);
-        _LD_r8_ind($self, 'W', @addr);
-        $r = 'W';
+    
+    my $realr = $r;
+    $r = '(HL)' if(defined($d));
+
+    _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
+
+    my $f = $self->register('F');
+    $f->setZ(!($self->register($r)->get() & 2**$bit));
+    $f->setH();
+    $f->resetN();
+    $f->setS($bit == 7 && $self->register($r)->get() & 0x80);
+    $f->setP($self->register('F')->getZ());
+    $f->set5($self->register($r)->get() & 0b100000);
+    $f->set3($self->register($r)->get() & 0b1000);
+    if(defined($d)) {
+        $f->set5(((ALU_getsigned($d, 8) + $self->register('HL')->get()) >> 8) & 0b100000);
+        $f->set3(((ALU_getsigned($d, 8) + $self->register('HL')->get()) >> 8) & 0b1000);
     }
-    $self->register('F')->setZ(!($self->register($r)->get() & 2**$bit));
-    $self->register('F')->setH();
-    $self->register('F')->resetN();
-    $self->register('F')->set5($self->register($r)->get() & 0b100000);
-    $self->register('F')->set3($self->register($r)->get() & 0b1000);
-    $self->register('F')->setS(
-        $bit == 7 && $self->register($r)->get() & 0x80
-    );
-    $self->register('F')->setP($self->register('F')->getZ());
-}
-sub _RES {
-    my($self, $bit, $r, $d) = @_;
-    my @addr;
-    if($r eq '(HL)') {
-        @addr = map { $self->register($_)->get()} qw(L H);
-        _LD_r8_ind($self, 'W', @addr);
-        $r = 'W';
-    }
-    $self->register($r)->set($self->register($r)->get() & (255 - 2**$bit));
-    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
-}
-sub _SET {
-    my($self, $bit, $r, $d) = @_;
-    my @addr;
-    if($r eq '(HL)') {
-        @addr = map { $self->register($_)->get()} qw(L H);
-        _LD_r8_ind($self, 'W', @addr);
-        $r = 'W';
-    }
-    $self->register($r)->set($self->register($r)->get() | (2**$bit));
-    _LD_ind_r8($self, 'W', @addr) if($r eq 'W');
 }
 
 sub _binop {
@@ -1218,14 +1231,23 @@ sub _RR {
 }
 sub _SLA {
     my($self, $r, $d) = @_;
-    if(defined($d)) { print "LD $r, SLA (IX + $d)\n" }
 
-    _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
-    
-    $self->register('F')->setC($self->register($r)->get() & 0x80);
-
-    $self->register($r)->set($self->register($r)->get() << 1);
-    _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+    if(defined($d) && $r ne '(HL)') { # weirdo DDCB*
+        my $realr = $r;
+        $realr .= $self->_got_prefix(0xDD) ? 'IX' : 'IY'
+            if($realr =~ /^[HL]$/);
+        $r = '(HL)';
+        _LD_r8_indHL($self, 'W', $d);
+        $self->register('F')->setC($self->register($r)->get() & 0x80);
+        $self->register($r)->set($self->register($r)->get() << 1);
+        _LD_indHL_r8($self, 'W', $d);
+        _LD_r8_r8($self, $realr, 'W');
+    } else {
+        _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
+        $self->register('F')->setC($self->register($r)->get() & 0x80);
+        $self->register($r)->set($self->register($r)->get() << 1);
+        _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+    }
 
     $self->register('F')->setZ($self->register($r)->get() == 0);
     $self->register('F')->set5($self->register($r)->get() & 0b100000);
@@ -1237,24 +1259,59 @@ sub _SLA {
 }
 sub _SLL {
     my($self, $r, $d) = @_;
-    _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
-    _SLA(@_);
-    $self->register($r)->set($self->register($r)->get() | 1);
-    _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
 
+    if(defined($d) && $r ne '(HL)') { # weirdo DDCB*
+        my $realr = $r;
+        $realr .= $self->_got_prefix(0xDD) ? 'IX' : 'IY'
+            if($realr =~ /^[HL]$/);
+        $r = '(HL)';
+        _LD_r8_indHL($self, 'W', $d);
+        $self->register('F')->setC($self->register($r)->get() & 0x80);
+        $self->register($r)->set($self->register($r)->get() << 1);
+        $self->register($r)->set($self->register($r)->get() | 1);
+        _LD_indHL_r8($self, 'W', $d);
+        _LD_r8_r8($self, $realr, 'W');
+    } else {
+        _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
+        $self->register('F')->setC($self->register($r)->get() & 0x80);
+        $self->register($r)->set($self->register($r)->get() << 1);
+        $self->register($r)->set($self->register($r)->get() | 1);
+        _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+    }
+
+    $self->register('F')->setZ($self->register($r)->get() == 0);
+    $self->register('F')->set5($self->register($r)->get() & 0b100000);
+    $self->register('F')->set3($self->register($r)->get() & 0b1000);
     $self->register('F')->setP(ALU_parity($self->register($r)->get()));
+    $self->register('F')->setS($self->register($r)->get() & 0x80);
+    $self->register('F')->resetH();
+    $self->register('F')->resetN();
 }
 sub _SRA {
     my($self, $r, $d) = @_;
 
-    _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
-
-    $self->register('F')->setC($self->register($r)->get() & 1);
-    $self->register($r)->set(
-        ($self->register($r)->get() & 0x80) |
-        ($self->register($r)->get() >> 1)
-    );
-    _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+    if(defined($d) && $r ne '(HL)') { # weirdo DDCB*
+        my $realr = $r;
+        $realr .= $self->_got_prefix(0xDD) ? 'IX' : 'IY'
+            if($realr =~ /^[HL]$/);
+        $r = '(HL)';
+        _LD_r8_indHL($self, 'W', $d);
+        $self->register('F')->setC($self->register($r)->get() & 1);
+        $self->register($r)->set(
+            ($self->register($r)->get() & 0x80) |
+            ($self->register($r)->get() >> 1)
+        );
+        _LD_indHL_r8($self, 'W', $d);
+        _LD_r8_r8($self, $realr, 'W');
+    } else {
+        _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
+        $self->register('F')->setC($self->register($r)->get() & 1);
+        $self->register($r)->set(
+            ($self->register($r)->get() & 0x80) |
+            ($self->register($r)->get() >> 1)
+        );
+        _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+    }
 
     $self->register('F')->setZ($self->register($r)->get() == 0);
     $self->register('F')->set5($self->register($r)->get() & 0b100000);
@@ -1267,13 +1324,38 @@ sub _SRA {
 sub _SRL {
     my($self, $r, $d) = @_;
 
-    _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
-    _SRA(@_);
-    $self->register($r)->set($self->register($r)->get() & 0x7F);
-    _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+    if(defined($d) && $r ne '(HL)') { # weirdo DDCB*
+        my $realr = $r;
+        $realr .= $self->_got_prefix(0xDD) ? 'IX' : 'IY'
+            if($realr =~ /^[HL]$/);
+        $r = '(HL)';
+        _LD_r8_indHL($self, 'W', $d);
+        $self->register('F')->setC($self->register($r)->get() & 1);
+        $self->register($r)->set(
+            ($self->register($r)->get() & 0x80) |
+            ($self->register($r)->get() >> 1)
+        );
+        $self->register($r)->set($self->register($r)->get() & 0x7F);
+        _LD_indHL_r8($self, 'W', $d);
+        _LD_r8_r8($self, $realr, 'W');
+    } else {
+        _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
+        $self->register('F')->setC($self->register($r)->get() & 1);
+        $self->register($r)->set(
+            ($self->register($r)->get() & 0x80) |
+            ($self->register($r)->get() >> 1)
+        );
+        $self->register($r)->set($self->register($r)->get() & 0x7F);
+        _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
+    }
 
-    $self->register('F')->setS($self->register($r)->get() & 0x80);
+    $self->register('F')->setZ($self->register($r)->get() == 0);
+    $self->register('F')->set5($self->register($r)->get() & 0b100000);
+    $self->register('F')->set3($self->register($r)->get() & 0b1000);
     $self->register('F')->setP(ALU_parity($self->register($r)->get()));
+    $self->register('F')->setS($self->register($r)->get() & 0x80);
+    $self->register('F')->resetH();
+    $self->register('F')->resetN();
 }
 sub _DAA {
     my $self = shift;
