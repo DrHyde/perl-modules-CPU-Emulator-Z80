@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.38 2008/02/26 13:53:47 drhyde Exp $
+# $Id: Z80.pm,v 1.39 2008/02/26 19:30:32 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -306,9 +306,18 @@ depends on whether you've enabled interrupts or not in your Z80 code.
 
 =cut
 
+{ my($prevpc, $avg) = (0,0);
 sub interrupt { # FIXME
     my $self = shift;
-    print "Got interrupted\n";
+    my $pc = $self->register('PC')->get();
+    my $instrs_execced = $pc-$prevpc;
+    $avg = (3 * $avg + $instrs_execced) / 4;
+    printf "Interrupted with PC=%#06x", $pc;
+    printf "  (%d instrs since prev)", $pc-$prevpc;
+    printf "  (avg %d instrs)", $avg;
+    $prevpc = $pc;
+    print "\n";
+}
 }
 
 =head2 run
@@ -918,7 +927,7 @@ sub _DJNZ {
     }
     _LD_r8_r8($self, 'F', 'W');          # restore flags
 }
-sub _HALT { shift()->register('PC')->dec(); sleep(1) }
+sub _HALT { shift()->register('PC')->dec(); select(undef, undef, undef, 0.01) }
 sub _INC {
     my($self, $r, $d) = @_;
     _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');

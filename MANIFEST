@@ -2662,3 +2662,6 @@ t/fuse-tests/testinstrs
 lib/CPU/Emulator/Z80/Register16SP.pm
 t/06-register16sp-methods.t
 t/07-magic-instructions.t
+t/pod-coverage.t
+t/pod.t
+t/z80-calc-parity-table.t
