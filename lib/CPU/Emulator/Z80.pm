@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.40 2008/02/26 21:54:54 drhyde Exp $
+# $Id: Z80.pm,v 1.41 2008/02/26 22:23:37 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -776,8 +776,7 @@ sub _check_cond {
            $cond eq 'PO' ? !$f->getP() :
            $cond eq 'PE' ?  $f->getP() :
            $cond eq 'P'  ? !$f->getS() :
-           $cond eq 'M'  ?  $f->getS() :
-           die("_check_cond: condition $cond - WTF?");
+                            $f->getS()
 }
 
 sub _ADD_r16_r16 {

@@ -1,7 +1,7 @@
 use strict;
 $^W = 1;
 
-use Test::More tests => 39;
+use Test::More tests => 40;
 
 use CPU::Emulator::Z80;
 
@@ -19,6 +19,9 @@ ok($cpu->memory()->isa('CPU::Emulator::Memory::Banked'),
 foreach (qw(A B C D E F R HL IX IY PC SP A_ B_ C_ D_ E_ F_ HL_ I)) {
     ok($cpu->register($_)->get() == 0, "register $_ defaults to 0");
 }
+
+ok(CPU::Emulator::Z80->new(init_B => 3)->register('B')->get() == 3,
+   "initialising registers at power-on works");
 
 my $v = 0x0A;
 foreach (qw(A B C D E F R HL IX IY PC SP A_ B_ C_ D_ E_ F_ HL_ I)) {
