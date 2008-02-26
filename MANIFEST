@@ -2665,3 +2665,6 @@ t/07-magic-instructions.t
 t/pod-coverage.t
 t/pod.t
 t/z80-calc-parity-table.t
+t/coverage.sh
+t/08-interrupts.t
+t/09-nmi.t

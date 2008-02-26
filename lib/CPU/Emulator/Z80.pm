@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.39 2008/02/26 19:30:32 drhyde Exp $
+# $Id: Z80.pm,v 1.40 2008/02/26 21:54:54 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -122,6 +122,8 @@ sub new {
     # bless early so we can close over it ...
     my $self;
     $self = bless {
+        iff1        => 0,
+        iff2        => 0,
         memory      => $args{memory},
         registers => Tie::Hash::Vivify->new(sub { confess("No auto-vivifying registers!\n".Dumper(\@_)) }),
         hw_registers => Tie::Hash::Vivify->new(sub { confess("No auto-vivifying hw_registers!\n".Dumper(\@_)) }),
@@ -303,22 +305,13 @@ sub format_registers {
 
 Attempt to raise an interrupt.  Whether any attention is paid to it or not
 depends on whether you've enabled interrupts or not in your Z80 code.
+Because only IM 1 is implemented, this will generate a RST 0x38 if
+interrupts are enabled.  Note that interrupts are disabled at power-on.
 
-=cut
+=head2 nmi
 
-{ my($prevpc, $avg) = (0,0);
-sub interrupt { # FIXME
-    my $self = shift;
-    my $pc = $self->register('PC')->get();
-    my $instrs_execced = $pc-$prevpc;
-    $avg = (3 * $avg + $instrs_execced) / 4;
-    printf "Interrupted with PC=%#06x", $pc;
-    printf "  (%d instrs since prev)", $pc-$prevpc;
-    printf "  (avg %d instrs)", $avg;
-    $prevpc = $pc;
-    print "\n";
-}
-}
+Raise a non-maskable interrupt.  This generates a CALL 0x0066 as the
+next instruction.
 
 =head2 run
 
@@ -574,9 +567,8 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
             _LD_r16_ind(shift(), $TABLE_RP[$p], @_); # LD rp[p], (nn)
         } } (0 .. 3)),
         (map { 0b01000100 | ($_ << 3) => \&_NEG } (0 .. 7)), # NEG
-        (map { my $y = $_; 0b01000101 | ($_ << 3) => sub {
-            $y == 1 ? _RETN(@_) : _RETI(@_); # RETN / RETI
-        } } (0 .. 7)),
+        (map { 0b01000101 | ($_ << 3) => ($_== 1 ? \&_RETI : \&_RETN) }
+            (0 .. 7)),
         (map { my $y = $_; 0b01000110 | ($_ << 3) => sub {
             _IM(shift(), $y); # IM im[y]
         } } (0 .. 7)),
@@ -658,6 +650,23 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
     },
 );
 
+sub nmi {
+    my $self = shift;
+    $self->{iff2} = $self->{iff1};
+    $self->{iff1} = 0;
+    $self->{NMI} = 1;
+}
+sub interrupt {
+    my $self = shift;
+    $self->{INTERRUPT} = 1 if(_interrupts_enabled($self));
+    _DI($self);
+}
+sub _interrupts_enabled {
+    my($self, $toggle) = @_;
+    return $self->{iff1} if(!defined($toggle));
+    $self->{iff1} = $self->{iff2} = $toggle;
+}
+
 sub run {
     my $self = shift;
     my $instrs_to_execute = -1;
@@ -669,7 +678,15 @@ sub run {
         $self->{instr_length_table} = \%INSTR_LENGTHS;
         $self->{instr_dispatch_table} = \%INSTR_DISPATCH;
         $self->{prefix_bytes} = [];
-        $self->_execute($self->_fetch());
+        if($self->{NMI}) {
+            delete $self->{NMI};
+            _DI($self);
+            _CALL_unconditional($self, 0x66, 0x00);
+        } elsif($self->{INTERRUPT}) {
+            delete $self->{INTERRUPT};
+            _DI($self);
+            $self->_execute(0xFF);
+        } else { $self->_execute($self->_fetch()); }
         delete $self->{instr_length_table};
         delete $self->{instr_dispatch_table};
         delete $self->{prefix_bytes};
@@ -1494,10 +1511,24 @@ sub _OUTD {}
 sub _INI {}
 sub _OUTI {}
 sub _IM {}
-sub _RETI {}
-sub _RETN {}
-sub _DI {}
-sub _EI {}
+sub _RETI {
+    print "RETI called\n";
+    _POP(shift(), 'PC');
+}
+sub _RETN {
+    # print "RETN called\n";
+    my $self = shift();
+    $self->{iff1} = $self->{iff2};
+    _POP($self, 'PC');
+}
+sub _DI {
+    my $self = shift;
+    _interrupts_enabled($self, 0);
+}
+sub _EI {
+    my $self = shift;
+    _interrupts_enabled($self, 1);
+}
 sub _swap_regs {
     my($self, $r1, $r2) = @_;
     my $temp = $self->register($r1)->get();
@@ -1531,7 +1562,8 @@ L<http://www.abebooks.com/servlet/SearchResults?an=zaks&tn=programming+the+z80>.
 
 Claims about making your code faster may not be true in all realities.
 
-I/O and interrupt-ish instructions are not yet implemented.
+Only interrupt mode 1 is implemented.  All interrupts are serviced
+by a RST 0x38 instruction.
 
 The DDCB- and FDCB-prefixed instructions are not yet implemented.
 

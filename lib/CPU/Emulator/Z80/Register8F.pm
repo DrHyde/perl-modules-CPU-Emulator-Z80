@@ -1,4 +1,4 @@
-# $Id: Register8F.pm,v 1.5 2008/02/23 01:38:04 drhyde Exp $
+# $Id: Register8F.pm,v 1.6 2008/02/26 21:54:55 drhyde Exp $
 
 package CPU::Emulator::Z80::Register8F;
 
@@ -70,14 +70,13 @@ sub _reset {
     $self->set($self->get() & (0xFF - $flag));
 }
 
+sub DESTROY{}
 sub AUTOLOAD {
     (my $sub = $AUTOLOAD) =~ s/.*:://;
     my($fn, $flag) = ($sub =~ /^(.*)(.)$/);
-    if($fn =~ /^(get|set|reset)$/ && exists($masks{$flag})) {
-        my $self = shift();
-        no strict 'refs';
-        return *{"_$fn"}->($self, $masks{$flag}, @_);
-    }
+    my $self = shift();
+    no strict 'refs';
+    return *{"_$fn"}->($self, $masks{$flag}, @_);
 }
 
 =head1 BUGS/WARNINGS/LIMITATIONS

@@ -1,4 +1,4 @@
-# $Id: Register.pm,v 1.5 2008/02/23 23:24:44 drhyde Exp $
+# $Id: Register.pm,v 1.6 2008/02/26 21:54:55 drhyde Exp $
 
 package CPU::Emulator::Z80::Register;
 
@@ -7,9 +7,6 @@ use vars qw($VERSION);
 $VERSION = '1.0';
 
 use CPU::Emulator::Z80::ALU;
-
-sub get {}
-sub set {}
 
 =head1 NAME
 

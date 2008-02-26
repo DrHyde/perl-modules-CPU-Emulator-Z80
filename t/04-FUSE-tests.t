@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.14 2008/02/25 21:01:44 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.15 2008/02/26 21:54:55 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -55,6 +55,8 @@ foreach my $yamlfile (@tests) {
             $addr++;
         }
     }
+    $cpu->{iff1} = $y->[0]->{IFF1};
+    $cpu->{iff2} = $y->[0]->{IFF2};
 
     my $beforememory = $cpu->memory()->{contents}; # FIXME - internals
     my $beforeregs = $cpu->format_registers();
@@ -86,6 +88,12 @@ foreach my $yamlfile (@tests) {
             $addr++;
         }
     }
+    $errors .=
+        "# IFFs differ:\n".
+        "#   should be IFF1 = ".$y->[0]->{IFF1}."  IFF2 = ".$y->[0]->{IFF2}."\n".
+        "#   but are   IFF1 = ".$cpu->{iff1}."  IFF2 = ".$cpu->{iff2}."\n"
+      if($y->[0]->{IFF1} != $cpu->{iff1} || $y->[0]->{IFF2} != $cpu->{iff2});
+
     if($errors) {
         $errors .= "#\n# started with\n".$beforeregs.
                    "#\n# finished with\n".$cpu->format_registers()
@@ -94,17 +102,15 @@ foreach my $yamlfile (@tests) {
     if($errors && uc($y->[0]->{name}) =~ /^(
         DB|
         ED(
-          4[015689D]|
-          5[01578DEF]|
+          4[0189]|
+          5[01578DF]|
           6[0568D]|
           7[058D]|
           A[23AB]|
           B[23AB]
         )
     )/x) {
-        print "ok $test # skip ".uc($y->[0]->{name})." I/O or interrupt\n";
-    } elsif($errors && $ENV{SKIP_DDCB} && uc($y->[0]->{name}) =~ /^[DF]DCB/) {
-        print "ok $test # skip ".uc($y->[0]->{name})." DD CB or FD CB prefix\n";
+        print "ok $test # skip ".uc($y->[0]->{name})." I/O\n";
     } else {
         print ''.($errors ? 'not ' : '')."ok $test -  \t".uc($y->[0]->{name}).": ".
             (do {
