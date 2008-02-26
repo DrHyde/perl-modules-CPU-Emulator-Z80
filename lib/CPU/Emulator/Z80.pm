@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.37 2008/02/25 23:39:54 drhyde Exp $
+# $Id: Z80.pm,v 1.38 2008/02/26 13:53:47 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -299,12 +299,34 @@ sub format_registers {
 ", map { $self->register($_)->get(); } qw(A F HL A_ F_ HL_ B C B_ C_ D E D_ E_ IX IY SP PC R I W Z));
 }
 
+=head2 interrupt
+
+Attempt to raise an interrupt.  Whether any attention is paid to it or not
+depends on whether you've enabled interrupts or not in your Z80 code.
+
+=cut
+
+sub interrupt { # FIXME
+    my $self = shift;
+    print "Got interrupted\n";
+}
+
 =head2 run
 
 Start the CPU running from whatever the Program Counter (PC) is set to.
 This will by default run for ever.  However, it takes an optional
-parameter telling the CPU to run
-that number of instructions.
+parameter telling the CPU to run that number of instructions.
+
+This returns either when that many instructions have been executed, or
+when a STOP instruction executed - see 'Extra Instructions' below.
+
+On return, the PC will point at the next instruction to execute so that
+you can resume where you left off.
+
+=head2 stopped
+
+Returns true if the CPU has STOPped, false otherwise.  You can use this
+to easily determine why the run() method returned.
 
 =cut
 
@@ -633,6 +655,7 @@ sub run {
     $instrs_to_execute = shift() if(@_);
 
     RUNLOOP: while($instrs_to_execute) {
+        delete $self->{STOPREACHED};
         $instrs_to_execute--;
         $self->{instr_length_table} = \%INSTR_LENGTHS;
         $self->{instr_dispatch_table} = \%INSTR_DISPATCH;
@@ -642,10 +665,14 @@ sub run {
         delete $self->{instr_dispatch_table};
         delete $self->{prefix_bytes};
         if($self->{STOPREACHED}) {
-            delete $self->{STOPREACHED};
             last RUNLOOP;
         }
     }
+}
+
+sub stopped {
+    my $self = shift;
+    return exists($self->{STOPREACHED});
 }
 
 # fetch all the bytes for an instruction and return them
