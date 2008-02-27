@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.15 2008/02/26 21:54:55 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.16 2008/02/27 23:05:31 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -9,7 +9,10 @@ opendir(my $dir, 't/fuse-tests') || die("Can't read t/fuse-tests/\n");
 my @tests = grep { $ARGV{"$_.in.yml"} || !keys(%ARGV) }
             map { s/\.in\.yml$//; "t/fuse-tests/$_"; }
             grep { -f "t/fuse-tests/$_" && /\.in\.yml$/ }
-            grep { $_ !~ /^(ddfd|fddd)/ } readdir($dir);
+            grep { $_ !~ /^(
+                db|                # IN A, (n)     tested elsewhere
+                ddfd|fddd          # magic instrs, tested elsewhere
+            )/x } readdir($dir);
 closedir($dir);
 
 print "1..".scalar(@tests)."\n";

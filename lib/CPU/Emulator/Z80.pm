@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.42 2008/02/27 19:54:58 drhyde Exp $
+# $Id: Z80.pm,v 1.43 2008/02/27 23:05:31 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -124,6 +124,7 @@ sub new {
     $self = bless {
         iff1        => 0,
         iff2        => 0,
+        inputs      => {},
         memory      => $args{memory},
         registers => Tie::Hash::Vivify->new(sub { confess("No auto-vivifying registers!\n".Dumper(\@_)) }),
         hw_registers => Tie::Hash::Vivify->new(sub { confess("No auto-vivifying hw_registers!\n".Dumper(\@_)) }),
@@ -209,6 +210,50 @@ sub _derive_register8 {
                },
         cpu => $self
     );
+}
+
+=head2 add_input_device
+
+Takes a single parameter, an address.  Creates an input device at
+that address and the next address.  The last bit of the address is
+set to 0 before the device is created - ie, it will always be created
+at an even byte and the following odd byte.
+
+See 'I/O' below for details on
+talking to them from within the emulator.
+
+=head2 input_data
+
+Takes two or more parameters, a port address and a list of bytes of
+data.  Makes those bytes available at the specified port.
+
+=cut
+
+sub add_input_device {
+    my($self, $addr) = @_;
+    $addr &= 0xFFFE;
+    die(sprintf("Device already exists at %#06x"))
+        if(exists($self->{inputs}->{$addr}));
+    $self->{inputs}->{$addr} = [];
+}
+
+sub input_data {
+    my($self, $addr, @bytes) = @_;
+    $addr &= 0xFFFE;
+    die(sprintf("No such device %#06x"))
+        unless(exists($self->{inputs}->{$addr}));
+    push @{$self->{inputs}->{$addr}}, @bytes;
+}
+    
+sub _get_from_input {
+    my($self, $addr) = @_;
+    if($addr & 1) { # odd - data address
+        push @{$self->{inputs}->{$addr}}, 0
+            unless($self->_get_from_input($addr - 1));
+        my $byte = shift(@{$self->{inputs}->{$addr-1}});
+    } else { # even - status address
+        return scalar(@{$self->{inputs}->{$addr}});
+    }
 }
 
 =head2 memory
@@ -1506,7 +1551,12 @@ sub _PUSH {
 sub _OUT_n_A {}
 sub _OUT_C_r {}
 sub _OUT_C_0 {}
-sub _IN_A_n {}
+sub _IN_A_n {
+    my($self, $lobyte) = @_;
+    $self->register('A')->set(
+        $self->_get_from_input(($self->register('A')->get() << 8) + $lobyte)
+    );
+}
 sub _IN_C {}
 sub _IN_r_C {}
 sub _INDR {}
@@ -1540,6 +1590,24 @@ sub _swap_regs {
     $self->register($r1)->set($self->register($r2)->get());
     $self->register($r2)->set($temp);
 }
+
+=head1 I/O
+
+When you use add_input_device(), you create a device which has a
+status port at the address specified (the address has the least
+significant bit set to zero, so the status port will always be
+on an even address) and a data port at the next address up.
+
+Reading from the status port will tell you the number of bytes
+available at the data port.  Reading the data port will return the
+first of those bytes, after which the byte you next get from the
+status port will be one less.
+
+Because the counter is only one byte, the behaviour will be
+undefined if you try to queue more than 255 bytes at the port.
+
+Reading from the data port when nothing is available will give you
+zero.
 
 =head1 EXTRA INSTRUCTIONS
 

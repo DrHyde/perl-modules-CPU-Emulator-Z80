@@ -2668,3 +2668,4 @@ t/z80-calc-parity-table.t
 t/coverage.sh
 t/08-interrupts.t
 t/09-nmi.t
+t/10-io-IN_A_N.t
