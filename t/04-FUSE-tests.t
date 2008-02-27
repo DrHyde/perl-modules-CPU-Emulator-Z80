@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.16 2008/02/27 23:05:31 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.17 2008/02/27 23:58:25 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -11,6 +11,16 @@ my @tests = grep { $ARGV{"$_.in.yml"} || !keys(%ARGV) }
             grep { -f "t/fuse-tests/$_" && /\.in\.yml$/ }
             grep { $_ !~ /^(
                 db|                # IN A, (n)     tested elsewhere
+                ed(                # IN r, (C), IN (C)
+                    40| # IN B, (C)
+                    48| # IN C, (C)
+                    50| # D
+                    58| # E
+                    60| # H
+                    68| # L
+                    70| # IN (C) - throws away result, but sets flags
+                    78| # A
+                )
                 ddfd|fddd          # magic instrs, tested elsewhere
             )/x } readdir($dir);
 closedir($dir);

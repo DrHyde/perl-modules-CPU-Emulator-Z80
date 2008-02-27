@@ -2669,3 +2669,4 @@ t/coverage.sh
 t/08-interrupts.t
 t/09-nmi.t
 t/10-io-IN_A_N.t
+t/11-io-IN_r_C.t

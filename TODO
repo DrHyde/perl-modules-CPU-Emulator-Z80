@@ -1,3 +1,4 @@
+flag tests in t/11-io-IN_r_C.t
 0.1s clock ticker
 kb input select() loop
 get an assembler for the host - google://z80+assembler+(unix|perl)

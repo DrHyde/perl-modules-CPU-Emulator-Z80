@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.43 2008/02/27 23:05:31 drhyde Exp $
+# $Id: Z80.pm,v 1.44 2008/02/27 23:58:25 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -445,7 +445,7 @@ my @TABLE_BLI = (
 
     0xCB, { (map { $_ => 1 } (0 .. 255)) }, # roll/shift/bit/res/set
     0xED, {
-            (map { 0b01000000 | ($_ << 3) => 1 } (0 .. 7)), # IN r[y],(C)/IN (C)
+            (map { 0b01000000 | ($_ << 3) => 1 } (0 .. 7)), # IN r[y],(C)
             (map { 0b01000001 | ($_ << 3) => 1 } (0 .. 7)), # OUT (C),r[y]/OUT (C), 0
             (map { 0b01000010 | ($_ << 3) => 1 } (0 .. 7)), # ADC/SBC HL, rp[p]
             (map { 0b01000011 | ($_ << 3) => 3 } (0 .. 7)), # LD (nn), rp[p]/LD rp[p], (nn)
@@ -597,8 +597,7 @@ $INSTR_LENGTHS{0xDD} = $INSTR_LENGTHS{0xFD} = {
                                 0b11000000 .. 0b11111111)),
         (map { my $y = $_; 0b01000000 | ($_ << 3) => sub {
             _IN_r_C(shift(), $TABLE_R[$y]); # IN r[y], (C)
-        } } (0 .. 5, 7)),
-        0b01110000 => \&_IN_C, # IN (C)
+        } } (0 .. 7)),
         (map { my $y = $_; 0b01000001 | ($_ << 3) => sub {
             _OUT_C_r(shift(), $TABLE_R[$y]); # OUT (C), r[y]
         } } (0 .. 5, 7)),
@@ -1557,8 +1556,19 @@ sub _IN_A_n {
         $self->_get_from_input(($self->register('A')->get() << 8) + $lobyte)
     );
 }
-sub _IN_C {}
-sub _IN_r_C {}
+sub _IN_r_C {
+    my($self, $r) = @_;
+    $r = $self->register($r); # for (HL) this is W and magically correct!
+    $r->set($self->_get_from_input($self->register('BC')->get()));
+    
+    my $f = $self->register('F');
+    $f->setS($r->get() & 0x80);
+    $f->setZ($r->get() == 0);
+    $f->set5($r->get() & 0b100000);
+    $f->resetH();
+    $f->set3($r->get() & 0b1000);
+    $f->setP(ALU_parity($r->get()));
+}
 sub _INDR {}
 sub _OTDR {}
 sub _INIR {}
