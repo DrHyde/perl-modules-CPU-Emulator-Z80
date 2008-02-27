@@ -1,19 +1,19 @@
 use strict;
 $^W = 1;
 
-use Test::More tests => 7;
+use Test::More tests => 9;
 
 use CPU::Emulator::Z80;
 
 my $cpu = CPU::Emulator::Z80->new();
 my $m = $cpu->memory();
 
-$cpu->interrupt();
-ok(!$cpu->{INTERRUPT}, "Interrupts are ignored when not enabled");
+ok(!$cpu->interrupt(), "interrupt() returns false when not enabled");
+ok(!$cpu->{INTERRUPT}, "internal interrupt flag not raised when not enabled");
 
 $cpu->run(1); # set PC to 1
 $cpu->_EI();
-$cpu->interrupt();
+ok($cpu->interrupt(), "interrupt() returns true when enabled");
 ok($cpu->{INTERRUPT}, "Interrupt flag raised on an int when they're enabled");
 
 $cpu->run(1);

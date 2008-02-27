@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.41 2008/02/26 22:23:37 drhyde Exp $
+# $Id: Z80.pm,v 1.42 2008/02/27 19:54:58 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -308,10 +308,14 @@ depends on whether you've enabled interrupts or not in your Z80 code.
 Because only IM 1 is implemented, this will generate a RST 0x38 if
 interrupts are enabled.  Note that interrupts are disabled at power-on.
 
+This returns true if the interrupt will be acted upon, false otherwise.
+That is, it returns true if interrupts are enabled.
+
 =head2 nmi
 
 Raise a non-maskable interrupt.  This generates a CALL 0x0066 as the
-next instruction.
+next instruction.a  This also disables interrupts.  Interrupts are
+restored to their previous state by a RETN instruction.
 
 =head2 run
 
@@ -658,8 +662,12 @@ sub nmi {
 }
 sub interrupt {
     my $self = shift;
-    $self->{INTERRUPT} = 1 if(_interrupts_enabled($self));
-    _DI($self);
+    if(_interrupts_enabled($self)) {
+        $self->{INTERRUPT} = 1;
+        _DI($self);
+        return 1;
+    }
+    return 0;
 }
 sub _interrupts_enabled {
     my($self, $toggle) = @_;
@@ -1511,11 +1519,9 @@ sub _INI {}
 sub _OUTI {}
 sub _IM {}
 sub _RETI {
-    print "RETI called\n";
     _POP(shift(), 'PC');
 }
 sub _RETN {
-    # print "RETN called\n";
     my $self = shift();
     $self->{iff1} = $self->{iff2};
     _POP($self, 'PC');
