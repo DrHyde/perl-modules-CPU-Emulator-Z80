@@ -8,7 +8,16 @@ use CPU::Emulator::Z80;
 my $cpu = CPU::Emulator::Z80->new();
 my $m = $cpu->memory();
 
-$cpu->add_input_device(0xC000);
+my @buffer = ();
+
+$cpu->add_input_device(
+    address => 0xC000,
+    function => sub { scalar(@buffer); }
+);
+$cpu->add_input_device(
+    address => 0xC001,
+    function => sub { shift(@buffer) || 0 }
+);
 
 $cpu->register('PC')->set(0);
 $m->poke16(0, 0xC03E); # LD A, 0xC0
@@ -17,8 +26,7 @@ $m->poke16(2, 0x00DB); # IN A, (00) ; read from 0x[A]00
 $cpu->run(2);
 ok($cpu->register('A')->get() == 0, "Read status port says 0 when nothing available");
 
-$cpu->input_data(0xC000, ord('A')); # put 'A' on port 0xC000
-$cpu->input_data(0xC000, ord('B'), ord('C')); # put 'B', 'C' on port
+push @buffer, ord('A'), ord('B'), ord('C');
 
 $cpu->register('PC')->set(0);
 $m->poke16(0, 0xC03E); # LD A, 0xC0

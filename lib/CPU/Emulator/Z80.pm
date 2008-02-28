@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.45 2008/02/28 00:46:48 drhyde Exp $
+# $Id: Z80.pm,v 1.46 2008/02/28 20:42:29 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -214,45 +214,25 @@ sub _derive_register8 {
 
 =head2 add_input_device
 
-Takes a single parameter, an address.  Creates an input device at
-that address and the next address.  The last bit of the address is
-set to 0 before the device is created - ie, it will always be created
-at an even byte and the following odd byte.
-
-See 'I/O' below for details on
-talking to them from within the emulator.
-
-=head2 input_data
-
-Takes two or more parameters, a port address and a list of bytes of
-data.  Makes those bytes available at the specified port.
+Takes two named parameters, 'address' and 'function', and creates an
+input port at that address.  Reading from the port will run the function,
+returning whatever the function returns.
 
 =cut
 
 sub add_input_device {
-    my($self, $addr) = @_;
-    $addr &= 0xFFFE;
-    die(sprintf("Device already exists at %#06x", $addr))
-        if(exists($self->{inputs}->{$addr}));
-    $self->{inputs}->{$addr} = [];
+    my($self, %params) = @_;
+    die(sprintf("Device already exists at %#06x", $params{address}))
+        if(exists($self->{inputs}->{$params{address}}));
+    $self->{inputs}->{$params{address}} = $params{function};
 }
 
-sub input_data {
-    my($self, $addr, @bytes) = @_;
-    $addr &= 0xFFFE;
-    die(sprintf("No such device %#06x", $addr))
-        unless(exists($self->{inputs}->{$addr}));
-    push @{$self->{inputs}->{$addr}}, @bytes;
-}
-    
 sub _get_from_input {
     my($self, $addr) = @_;
-    if($addr & 1) { # odd - data address
-        push @{$self->{inputs}->{$addr}}, 0
-            unless($self->_get_from_input($addr - 1));
-        my $byte = shift(@{$self->{inputs}->{$addr-1}});
-    } else { # even - status address
-        return scalar(@{$self->{inputs}->{$addr}});
+    if(exists($self->{inputs}->{$addr})) {
+        return $self->{inputs}->{$addr}->($self, $addr);
+    } else {
+        die(sprintf("No such port %#06x", $addr));
     }
 }
 
@@ -1601,24 +1581,6 @@ sub _swap_regs {
     $self->register($r2)->set($temp);
 }
 
-=head1 I/O
-
-When you use add_input_device(), you create a device which has a
-status port at the address specified (the address has the least
-significant bit set to zero, so the status port will always be
-on an even address) and a data port at the next address up.
-
-Reading from the status port will tell you the number of bytes
-available at the data port.  Reading the data port will return the
-first of those bytes, after which the byte you next get from the
-status port will be one less.
-
-Because the counter is only one byte, the behaviour will be
-undefined if you try to queue more than 255 bytes at the port.
-
-Reading from the data port when nothing is available will give you
-zero.
-
 =head1 EXTRA INSTRUCTIONS
 
 Whenever any combination of two of the 0xDD and 0xFD prefixes are
@@ -1666,6 +1628,12 @@ pass once I've fixed the bug.
 Feature requests are far more likely to get implemented if you submit
 a patch yourself.
 
+=head1 SEE ALSO
+
+L<Acme::6502>
+
+The FUSE Free Unix Spectrum Emulator: L<http://fuse-emulator.sourceforge.net/>
+
 =head1 CVS
 
 L<http://drhyde.cvs.sourceforge.net/drhyde/perlmodules/CPU-Emulator-Z80/>
@@ -1675,7 +1643,13 @@ L<http://drhyde.cvs.sourceforge.net/drhyde/perlmodules/CPU-Emulator-Z80/>
 Copyright 2008 David Cantrell E<lt>F<david@cantrell.org.uk>E<gt>
 
 This module is free-as-in-speech software, and may be used,
-distributed, and modified under the same terms as Perl itself.
+distributed, and modified under the terms of the GNU General Public
+Licence version 2, or any later version if you prefer.
+
+Note that this differs from the licence for the other modules.  That is
+because the bulk of this particular module's test suite is derived from
+FUSE, which is GPLed.  A copy of the GPL can be found in the
+t/fuse-tests/COPYING file.
 
 =head1 CONSPIRACY
 

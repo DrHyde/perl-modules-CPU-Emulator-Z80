@@ -23,7 +23,16 @@ my %instrs = (
 foreach my $instr (keys %instrs) {
     my $cpu = CPU::Emulator::Z80->new();
     my $m = $cpu->memory();
-    $cpu->add_input_device(0xC000);
+    my @buffer = ();
+
+    $cpu->add_input_device(
+        address => 0xC000,
+        function => sub { scalar(@buffer); }
+    );
+    $cpu->add_input_device(
+        address => 0xC001,
+        function => sub { shift(@buffer) || 0 }
+    );
 
     $m->poke(0,   0x01);
     $m->poke16(1, 0xC000);
@@ -33,7 +42,7 @@ foreach my $instr (keys %instrs) {
     ok($cpu->register($instrs{$instr})->get() == 0, "Read status port says 0 when nothing available for IN $instrs{$instr}, (C)");
     # die($cpu->format_registers());
     
-    $cpu->input_data(0xC000, ord('A')); # put 'A' on port 0xC000
+    push @buffer, ord('A'); # put 'A' on port 0xC000
     $m->poke(5,   0x01);   # LD BC, ...
     $m->poke16(6, 0xC000); #        0xC000
     $m->poke(8, $instr >> 8);
