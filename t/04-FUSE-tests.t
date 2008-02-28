@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.17 2008/02/27 23:58:25 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.18 2008/02/28 00:11:00 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -19,8 +19,8 @@ my @tests = grep { $ARGV{"$_.in.yml"} || !keys(%ARGV) }
                     60| # H
                     68| # L
                     70| # IN (C) - throws away result, but sets flags
-                    78| # A
-                )
+                    78  # A
+                )|
                 ddfd|fddd          # magic instrs, tested elsewhere
             )/x } readdir($dir);
 closedir($dir);
@@ -123,7 +123,7 @@ foreach my $yamlfile (@tests) {
           B[23AB]
         )
     )/x) {
-        print "ok $test # skip ".uc($y->[0]->{name})." I/O\n";
+        print "ok $test # skip ".uc($y->[0]->{name})." ($testnames{$y->[0]->{name}}) I/O\n";
     } else {
         print ''.($errors ? 'not ' : '')."ok $test -  \t".uc($y->[0]->{name}).": ".
             (do {
