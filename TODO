@@ -5,3 +5,4 @@ get an assembler for the host - google://z80+assembler+(unix|perl)
 get an assembler in Z80 source, ROMify it
 
 INI / IND / INIR / INDR
+OUTI / OUTD / OTIR / OTDR
