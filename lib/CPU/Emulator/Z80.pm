@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.44 2008/02/27 23:58:25 drhyde Exp $
+# $Id: Z80.pm,v 1.45 2008/02/28 00:46:48 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -232,7 +232,7 @@ data.  Makes those bytes available at the specified port.
 sub add_input_device {
     my($self, $addr) = @_;
     $addr &= 0xFFFE;
-    die(sprintf("Device already exists at %#06x"))
+    die(sprintf("Device already exists at %#06x", $addr))
         if(exists($self->{inputs}->{$addr}));
     $self->{inputs}->{$addr} = [];
 }
@@ -240,7 +240,7 @@ sub add_input_device {
 sub input_data {
     my($self, $addr, @bytes) = @_;
     $addr &= 0xFFFE;
-    die(sprintf("No such device %#06x"))
+    die(sprintf("No such device %#06x", $addr))
         unless(exists($self->{inputs}->{$addr}));
     push @{$self->{inputs}->{$addr}}, @bytes;
 }
