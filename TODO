@@ -3,3 +3,5 @@ flag tests in t/11-io-IN_r_C.t
 kb input select() loop
 get an assembler for the host - google://z80+assembler+(unix|perl)
 get an assembler in Z80 source, ROMify it
+
+INI / IND / INIR / INDR

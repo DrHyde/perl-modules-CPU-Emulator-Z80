@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.46 2008/02/28 20:42:29 drhyde Exp $
+# $Id: Z80.pm,v 1.47 2008/02/28 23:10:53 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -13,6 +13,7 @@ $SIG{__WARN__} = sub {
     warn(__PACKAGE__.": $_[0]\n");
 };
 
+use Carp;
 use Scalar::Util qw(blessed reftype);
 use Tie::Hash::Vivify;
 use Carp qw(confess);
@@ -125,6 +126,7 @@ sub new {
         iff1        => 0,
         iff2        => 0,
         inputs      => {},
+        outputs     => {},
         memory      => $args{memory},
         registers => Tie::Hash::Vivify->new(sub { confess("No auto-vivifying registers!\n".Dumper(\@_)) }),
         hw_registers => Tie::Hash::Vivify->new(sub { confess("No auto-vivifying hw_registers!\n".Dumper(\@_)) }),
@@ -215,7 +217,8 @@ sub _derive_register8 {
 =head2 add_input_device
 
 Takes two named parameters, 'address' and 'function', and creates an
-input port at that address.  Reading from the port will run the function,
+input port at that address.  Reading from the port will call the
+function with no parameters,
 returning whatever the function returns.
 
 =cut
@@ -230,9 +233,33 @@ sub add_input_device {
 sub _get_from_input {
     my($self, $addr) = @_;
     if(exists($self->{inputs}->{$addr})) {
-        return $self->{inputs}->{$addr}->($self, $addr);
+        return $self->{inputs}->{$addr}->();
     } else {
         die(sprintf("No such port %#06x", $addr));
+    }
+}
+
+=head2 add_output_device
+
+Takes two named parameters, 'address' and 'function', and creates an
+output port at that address.  Writing to the port simply calls that
+function with the byte to be written as its only parameter.
+
+=cut
+
+sub add_output_device {
+    my($self, %params) = @_;
+    die(sprintf("Device already exists at %#06x", $params{address}))
+        if(exists($self->{outputs}->{$params{address}}));
+    $self->{outputs}->{$params{address}} = $params{function};
+}
+
+sub _put_to_output {
+    my($self, $addr, $byte) = @_;
+    if(exists($self->{outputs}->{$addr})) {
+        $self->{outputs}->{$addr}->($byte);
+    } else {
+        carp(sprintf("No such port %#06x", $addr));
     }
 }
 
@@ -1527,9 +1554,6 @@ sub _PUSH {
         $self->register($r)->get()
     );
 }
-sub _OUT_n_A {}
-sub _OUT_C_r {}
-sub _OUT_C_0 {}
 sub _IN_A_n {
     my($self, $lobyte) = @_;
     $self->register('A')->set(
@@ -1549,15 +1573,37 @@ sub _IN_r_C {
     $f->set3($r->get() & 0b1000);
     $f->setP(ALU_parity($r->get()));
 }
-sub _INDR {}
-sub _OTDR {}
-sub _INIR {}
-sub _OTIR {}
 sub _IND {}
-sub _OUTD {}
 sub _INI {}
+sub _INDR {}
+sub _INIR {}
+
+sub _OUT_n_A { # output A to B<<8 + n
+    my($self, $n) = @_;
+    $self->_put_to_output(
+        ($self->register('B')->get() << 8) + $n,
+        $self->register('A')->get()
+    );
+}
+sub _OUT_C_r {
+    my($self, $r) = @_;
+    $self->_put_to_output(
+        $self->register('BC')->get(),
+        $self->register($r)->get()
+    );
+}
+sub _OUT_C_0 {
+    my $self = shift();
+    $self->register('W')->set(0);
+    _OUT_C_r($self, 'W');
+}
+sub _OTDR {}
+sub _OTIR {}
+sub _OUTD {}
 sub _OUTI {}
-sub _IM {}
+
+sub _IM {} # everything is IM 1
+
 sub _RETI {
     _POP(shift(), 'PC');
 }

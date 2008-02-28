@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.19 2008/02/28 00:46:48 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.20 2008/02/28 23:10:53 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -10,19 +10,21 @@ my @tests = grep { $ARGV{"$_.in.yml"} || !keys(%ARGV) }
             map { s/\.in\.yml$//; "t/fuse-tests/$_"; }
             grep { -f "t/fuse-tests/$_" && /\.in\.yml$/ }
             grep { $_ !~ /^(
-                db|                # IN A, (n)     tested elsewhere
-                ed(                # IN r, (C), IN (C)
-                    40| # IN B, (C)
-                    48| # IN C, (C)
-                    50| # D
-                    58| # E
-                    60| # H
-                    68| # L
-                    70| # IN (C) - throws away result, but sets flags
-                    78  # A
+                db|             # IO instrs, tested elsewhere
+                d3|
+                ed(
+                    4[0189]|
+                    5[0189]|
+                    6[0189]|
+                    7[0189]|
+                    # A2| # INI
+                    # AA| # IND
+                    # B2| # INIR
+                    # BA| # INDR
+                    hlagh
                 )|
                 ddfd|fddd          # magic instrs, tested elsewhere
-            )/x } readdir($dir);
+            )/ix } readdir($dir);
 closedir($dir);
 
 print "1..".scalar(@tests)."\n";
@@ -113,14 +115,16 @@ foreach my $yamlfile (@tests) {
     }
 
     if($errors && uc($y->[0]->{name}) =~ /^(
-        DB|
         ED(
-          4[0189]|
-          5[01578DF]|
-          6[0568D]|
-          7[058D]|
-          A[23AB]|
-          B[23AB]
+          5[57DF]|
+          6[56D]|
+          7[5D]|
+          A[3B]|
+          A2| # INI
+          AA| # IND
+          B2| # INIR
+          BA| # INDR
+          B[3B]
         )
     )/x) {
         print "ok $test # skip ".uc($y->[0]->{name})." I/O\n";
