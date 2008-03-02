@@ -1,4 +1,4 @@
-# $Id: Assembler.pm,v 1.1 2008/03/02 19:33:24 drhyde Exp $
+# $Id: Assembler.pm,v 1.2 2008/03/02 23:41:21 drhyde Exp $
 
 package CPU::Emulator::Z80::Assembler;
 
@@ -9,6 +9,7 @@ use vars qw($VERSION @EXPORT);
 
 $VERSION = '1.0';
 
+use Data::Dumper;
 use base qw(Exporter);
 
 @EXPORT = qw(z80asm);
@@ -45,126 +46,82 @@ By default the 'z80asm' subroutine is exported.  To disable that, do:
 
 =head1 THE z80asm SUBROUTINE
 
-This takes one parameteri if you want to use it as a function, or
-named parameters if you want it to operate on files.
+This takes one parameter, a string of Z80 assembler source.  It
+returns the assembled version as a string, with any gaps padded
+with NULLs if necessary.
 
-=head2 1 parameter
-
-It takes a string of Z80 assembler source as input, and returns a
-blob of binary.
-
-=head2 named parameters
-
-The available parameters are:
-
-=over
-
-=item in
-
-The name of a file, or a filehandle, from which to read source code.
-If using named parameters this is compulsory.
-
-=item out
-
-The name of a file, or a filehandle, to which to write source code.
-This is optional
-
-=back
+=head1 SYNTAX
 
 =cut
 
 sub z80asm {
-    if($#_ == 0) {
-        return _z80asm(shift())
+    my $source = shift();
+    local $/ = "\n";
+
+    my %mapping = ();
+    while(my $line = <DATA>) {
+        $line =~ s/^\s+|\s$//g;
+        my $localmapping = \%mapping;
+        my($mnemonic, $bytes) = split(/\s+;\s+/, $line);
+        my @words = split(/[\s,]/, $mnemonic);
+        my @bytes = split(/\s+/, $bytes);
+        while(@words) {
+            my $word = shift(@words);
+            $localmapping->{$word} = {} unless($localmapping->{$word});
+            if(@words) {
+                $localmapping = $localmapping->{$word};
+            } else {
+                # NB RET vs RET C etc
+                $localmapping->{$word}->{BYTES} = \@bytes;
+            }
+        }
     }
-    my %params = @_;
-    die("No input specified for assembler") if(!exists($params{in}));
-
-    my $code = _z80asm(_read($params{in}));
-
-    if(exists($params{out})) { return _write($params{out}, $code); }
-
-    return $code;
+    print Dumper(\%mapping);
 }
 
-sub _read {
-    my $in = shift;
-    if(!ref($in)) { open($in, $in) || die("Can't open $in"); }
-    local $/ = undef;
-    $contents = <$in>;
-    close($in);
-    return $contents;
-}
 
-If using named parameters - ie i
-=cut
-
-# NN      EQU     1234H           ; a sixteen bit number
-# N       EQU     56H             ; an eight bit number
-
-        NOP                     ; 00
-        LD BC,NN                ; 01 XX XX
+# careful - LD (IX+XX),XX
+#         - JR, DJNZ
+__DATA__
+        LD BC,XXXX                ; 01 XX XX
         LD (BC),A               ; 02
-        INC BC                  ; 03
-        INC B                   ; 04
         DEC B                   ; 05
-        LD B,N                  ; 06 XX
         RLCA                    ; 07
         EX AF,AF'               ; 08
         ADD HL,BC               ; 09
         LD A,(BC)               ; 0A
         DEC BC                  ; 0B
-        INC C                   ; 0C
         DEC C                   ; 0D
-        LD C,N                  ; 0E XX
         RRCA                    ; 0F
-        DJNZ $+2                ; 10
-        LD DE,NN                ; 11 XX XX
+        LD DE,XXXX                ; 11 XX XX
         LD (DE),A               ; 12
-        INC DE                  ; 13
-        INC D                   ; 14
         DEC D                   ; 15
-        LD D,N                  ; 16 XX
         RLA                     ; 17
-        JR $+2                  ; 18
+        JR XX                  ; 18 XX
         ADD HL,DE               ; 19
         LD A,(DE)               ; 1A
         DEC DE                  ; 1B
-        INC E                   ; 1C
         DEC E                   ; 1D
-        LD E,N                  ; 1E XX
         RRA                     ; 1F
-        JR NZ,$+2               ; 20
-        LD HL,NN                ; 21 XX XX
-        LD (NN),HL              ; 22 XX XX
-        INC HL                  ; 23
-        INC H                   ; 24
+        LD HL,XXXX                ; 21 XX XX
+        LD (XXXX),HL              ; 22 XX XX
         DEC H                   ; 25
-        LD H,N                  ; 26 XX
         DAA                     ; 27
-        JR Z,$+2                ; 28
+        JR Z,XX                ; 28 XX
         ADD HL,HL               ; 29
-        LD HL,(NN)              ; 2A XX XX
+        LD HL,(XXXX)              ; 2A XX XX
         DEC HL                  ; 2B
-        INC L                   ; 2C
         DEC L                   ; 2D
-        LD L,N                  ; 2E XX
         CPL                     ; 2F
-        JR NC,$+2               ; 30
-        LD SP,NN                ; 31 XX XX
-        LD (NN),A               ; 32 XX XX
-        INC SP                  ; 33
-        INC (HL)                ; 34
+        LD SP,XXXX                ; 31 XX XX
+        LD (XXXX),A               ; 32 XX XX
         DEC (HL)                ; 35
-        LD (HL),N               ; 36 XX
         SCF                     ; 37
-        JR C,$+2                ; 38
+        JR C,XX                ; 38 XX
         ADD HL,SP               ; 39
-        LD A,(NN)               ; 3A XX XX
+        LD A,(XXXX)               ; 3A XX XX
         DEC SP                  ; 3B
-        INC A                   ; 3C
         DEC A                   ; 3D
-        LD A,N                  ; 3E XX
         CCF                     ; 3F
         LD B,B                  ; 40
         LD B,C                  ; 41
@@ -262,14 +219,6 @@ If using named parameters - ie i
         SBC L                   ; 9D
         SBC (HL)                ; 9E
         SBC A                   ; 9F
-        AND B                   ; A0
-        AND C                   ; A1
-        AND D                   ; A2
-        AND E                   ; A3
-        AND H                   ; A4
-        AND L                   ; A5
-        AND (HL)                ; A6
-        AND A                   ; A7
         XOR B                   ; A8
         XOR C                   ; A9
         XOR D                   ; AA
@@ -294,17 +243,13 @@ If using named parameters - ie i
         CP L                    ; BD
         CP (HL)                 ; BE
         CP A                    ; BF
-        RET NZ                  ; C0
         POP BC                  ; C1
-        JP NZ,$+3               ; C2
-        JP $+3                  ; C3
-        CALL NZ,NN              ; C4 XX XX
+        JP XXXX                  ; C3 XX XX
         PUSH BC                 ; C5
-        ADD A,N                 ; C6 XX
         RST 0                   ; C7
         RET Z                   ; C8
         RET                     ; C9
-        JP Z,$+3                ; CA
+        JP Z,XXXX                ; CA XX XX
         RLC B                   ; CB 00
         RLC C                   ; CB 01
         RLC D                   ; CB 02
@@ -553,246 +498,281 @@ If using named parameters - ie i
         SET 7,L                 ; CB FD
         SET 7,(HL)              ; CB FE
         SET 7,A                 ; CB FF
-        CALL Z,NN               ; CC XX XX
-        CALL NN                 ; CD XX XX
-        ADC A,N                 ; CE XX
+        CALL Z,XXXX               ; CC XX XX
+        CALL XXXX                 ; CD XX XX
         RST 8H                  ; CF 
-        RET NC                  ; D0
         POP DE                  ; D1
-        JP NC,$+3               ; D2
-        OUT (N),A               ; D3 XX
-        CALL NC,NN              ; D4 XX XX
-        CALL NC,NN              ; D4 XX XX
         PUSH DE                 ; D5
-        SUB N                   ; D6 XX
         RST 10H                 ; D7
         RET C                   ; D8
         EXX                     ; D9
-        JP C,$+3                ; DA
-        IN A,(N)                ; DB XX
-        CALL C,NN               ; DC XX XX
+        JP C,XXXX                 ; DA XX XX
+        CALL C,XXXX               ; DC XX XX
         ADD IX,BC               ; DD 09
         ADD IX,DE               ; DD 19
-        LD IX,NN                ; DD 21 XX XX
-        LD (NN),IX              ; DD 22 XX XX
-        INC IX                  ; DD 23
+        LD IX,XXXX                ; DD 21 XX XX
+        LD (XXXX),IX              ; DD 22 XX XX
         ADD IX,IX               ; DD 29
-        LD IX,(NN)              ; DD 2A XX XX
+        LD IX,(XXXX)              ; DD 2A XX XX
         DEC IX                  ; DD 2B
-        INC (IX+N)              ; DD 34 XX
-        DEC (IX+N)              ; DD 35 XX
-        LD (IX+N),N             ; DD 36 XX XX
         ADD IX,SP               ; DD 39
-        LD B,(IX+N)             ; DD 46 XX
-        LD C,(IX+N)             ; DD 4E XX
-        LD D,(IX+N)             ; DD 56 XX
-        LD E,(IX+N)             ; DD 5E XX
-        LD H,(IX+N)             ; DD 66 XX
-        LD L,(IX+N)             ; DD 6E XX
-        LD (IX+N),B             ; DD 70 XX
-        LD (IX+N),C             ; DD 71 XX
-        LD (IX+N),D             ; DD 72 XX
-        LD (IX+N),E             ; DD 73 XX
-        LD (IX+N),H             ; DD 74 XX
-        LD (IX+N),L             ; DD 75 XX
-        LD (IX+N),A             ; DD 77 XX
-        LD A,(IX+N)             ; DD 7E XX
-        ADD A,(IX+N)            ; DD 86 XX
-        ADC A,(IX+N)            ; DD 8E XX
-        SUB (IX+N)              ; DD 96 XX
-        SBC A,(IX+N)            ; DD 9E XX
-        AND (IX+N)              ; DD A6 XX
-        XOR (IX+N)              ; DD AE XX
-        OR (IX+N)               ; DD B6 XX
-        CP (IX+N)               ; DD BE XX
-        RLC (IX+N)              ; DD CB XX 06
-        RRC (IX+N)              ; DD CB XX 0E
-        RL (IX+N)               ; DD CB XX 16
-        RR (IX+N)               ; DD CB XX 1E
-        SLA (IX+N)              ; DD CB XX 26
-        SRA (IX+N)              ; DD CB XX 2E
-        BIT 0,(IX+N)            ; DD CB XX 46
-        BIT 1,(IX+N)            ; DD CB XX 4E
-        BIT 2,(IX+N)            ; DD CB XX 56
-        BIT 3,(IX+N)            ; DD CB XX 5E
-        BIT 4,(IX+N)            ; DD CB XX 66
-        BIT 5,(IX+N)            ; DD CB XX 6E
-        BIT 6,(IX+N)            ; DD CB XX 76
-        BIT 7,(IX+N)            ; DD CB XX 7E
-        RES 0,(IX+N)            ; DD CB XX 86
-        RES 1,(IX+N)            ; DD CB XX 8E
-        RES 2,(IX+N)            ; DD CB XX 96
-        RES 3,(IX+N)            ; DD CB XX 9E
-        RES 4,(IX+N)            ; DD CB XX A6
-        RES 5,(IX+N)            ; DD CB XX AE
-        RES 6,(IX+N)            ; DD CB XX B6
-        RES 7,(IX+N)            ; DD CB XX BE
-        SET 0,(IX+N)            ; DD CB XX C6
-        SET 1,(IX+N)            ; DD CB XX CE
-        SET 2,(IX+N)            ; DD CB XX D6
-        SET 3,(IX+N)            ; DD CB XX DE
-        SET 4,(IX+N)            ; DD CB XX E6
-        SET 5,(IX+N)            ; DD CB XX EE
-        SET 6,(IX+N)            ; DD CB XX F6
-        SET 7,(IX+N)            ; DD CB XX FE
         POP IX                  ; DD E1
         EX (SP),IX              ; DD E3
         PUSH IX                 ; DD E5
         JP (IX)                 ; DD E9
         LD SP,IX                ; DD F9
-        SBC A,N                 ; DE XX
         RST 18H                 ; DF
         RET PO                  ; E0
         POP HL                  ; E1
-        JP PO,$+3               ; E2
+        JP PO,XXXX               ; E2 XX XX
         EX (SP),HL              ; E3
-        CALL PO,NN              ; E4 XX XX
+        CALL PO,XXXX              ; E4 XX XX
         PUSH HL                 ; E5
-        AND N                   ; E6 XX
         RST 20H                 ; E7
         RET PE                  ; E8
         JP (HL)                 ; E9
-        JP PE,$+3               ; EA
+        JP PE,XXXX               ; EA XX XX
         EX DE,HL                ; EB
-        CALL PE,NN              ; EC XX XX
-        IN B,(C)                ; ED 40
+        CALL PE,XXXX              ; EC XX XX
         OUT (C),B               ; ED 41
         SBC HL,BC               ; ED 42
-        LD (NN),BC              ; ED 43 XX XX
-        NEG                     ; ED 44
-        RETN                    ; ED 45
+        LD (XXXX),BC              ; ED 43 XX XX
         IM 0                    ; ED 46
         LD I,A                  ; ED 47
-        IN C,(C)                ; ED 48
         OUT (C),C               ; ED 49
         ADC HL,BC               ; ED 4A
-        LD BC,(NN)              ; ED 4B XX XX
+        LD BC,(XXXX)              ; ED 4B XX XX
         RETI                    ; ED 4D
-        IN D,(C)                ; ED 50
         OUT (C),D               ; ED 51
         SBC HL,DE               ; ED 52
-        LD (NN),DE              ; ED 53 XX XX
+        LD (XXXX),DE              ; ED 53 XX XX
         IM 1                    ; ED 56
         LD A,I                  ; ED 57
-        IN E,(C)                ; ED 58
         OUT (C),E               ; ED 59
         ADC HL,DE               ; ED 5A
-        LD DE,(NN)              ; ED 5B XX XX
+        LD DE,(XXXX)              ; ED 5B XX XX
         IM 2                    ; ED 5E
-        IN H,(C)                ; ED 60
         OUT (C),H               ; ED 61
         SBC HL,HL               ; ED 62
         RRD                     ; ED 67
-        IN L,(C)                ; ED 68
         OUT (C),L               ; ED 69
         ADC HL,HL               ; ED 6A
         RLD                     ; ED 6F
         SBC HL,SP               ; ED 72
-        LD (NN),SP              ; ED 73 XX XX
-        IN A,(C)                ; ED 78
+        LD (XXXX),SP              ; ED 73 XX XX
         OUT (C),A               ; ED 79
         ADC HL,SP               ; ED 7A
-        LD SP,(NN)              ; ED 7B XX XX
+        LD SP,(XXXX)              ; ED 7B XX XX
         LDI                     ; ED A0
         CPI                     ; ED A1
-        INI                     ; ED A2
         OUTI                    ; ED A3
         LDD                     ; ED A8
         CPD                     ; ED A9
-        IND                     ; ED AA
         OUTD                    ; ED AB
         LDIR                    ; ED B0
         CPIR                    ; ED B1
-        INIR                    ; ED B2
         OTIR                    ; ED B3
         LDDR                    ; ED B8
         CPDR                    ; ED B9
-        INDR                    ; ED BA
         OTDR                    ; ED BB
-        XOR N                   ; EE XX
         RST 28H                 ; EF
         RET P                   ; F0
         POP AF                  ; F1
-        JP P,$+3                ; F2
+        JP P,XXXX                ; F2 XX XX
         DI                      ; F3
-        CALL P,NN               ; F4 XX XX
+        CALL P,XXXX               ; F4 XX XX
         PUSH AF                 ; F5
-        OR N                    ; F6 XX
         RST 30H                 ; F7
         RET M                   ; F8
         LD SP,HL                ; F9
-        JP M,$+3                ; FA
+        JP M,XXXX                ; FA XX XX
         EI                      ; FB
-        CALL M,NN               ; FC XX XX
+        CALL M,XXXX               ; FC XX XX
         ADD IY,BC               ; FD 09
         ADD IY,DE               ; FD 19
-        LD IY,NN                ; FD 21 XX XX
-        LD (NN),IY              ; FD 22 XX XX
-        INC IY                  ; FD 23
+        LD IY,XXXX                ; FD 21 XX XX
+        LD (XXXX),IY              ; FD 22 XX XX
         ADD IY,IY               ; FD 29
-        LD IY,(NN)              ; FD 2A XX XX
+        LD IY,(XXXX)              ; FD 2A XX XX
         DEC IY                  ; FD 2B
-        INC (IY+N)              ; FD 34 XX
-        DEC (IY+N)              ; FD 35 XX
-        LD (IY+N),N             ; FD 36 XX XX
         ADD IY,SP               ; FD 39
-        LD B,(IY+N)             ; FD 46 XX
-        LD C,(IY+N)             ; FD 4E XX
-        LD D,(IY+N)             ; FD 56 XX
-        LD E,(IY+N)             ; FD 5E XX
-        LD H,(IY+N)             ; FD 66 XX
-        LD L,(IY+N)             ; FD 6E XX
-        LD (IY+N),B             ; FD 70 XX
-        LD (IY+N),C             ; FD 71 XX
-        LD (IY+N),D             ; FD 72 XX
-        LD (IY+N),E             ; FD 73 XX
-        LD (IY+N),H             ; FD 74 XX
-        LD (IY+N),L             ; FD 75 XX
-        LD (IY+N),A             ; FD 77 XX
-        LD A,(IY+N)             ; FD 7E XX
-        ADD A,(IY+N)            ; FD 86 XX
-        ADC A,(IY+N)            ; FD 8E XX
-        SUB (IY+N)              ; FD 96 XX
-        SBC A,(IY+N)            ; FD 9E XX
-        AND (IY+N)              ; FD A6 XX
-        XOR (IY+N)              ; FD AE XX
-        OR (IY+N)               ; FD B6 XX
-        CP (IY+N)               ; FD BE XX
-        RLC (IY+N)              ; FD CB XX 06
-        RRC (IY+N)              ; FD CB XX 0E
-        RL (IY+N)               ; FD CB XX 16
-        RR (IY+N)               ; FD CB XX 1E
-        SLA (IY+N)              ; FD CB XX 26
-        SRA (IY+N)              ; FD CB XX 2E
-        BIT 0,(IY+N)            ; FD CB XX 46
-        BIT 1,(IY+N)            ; FD CB XX 4E
-        BIT 2,(IY+N)            ; FD CB XX 56
-        BIT 3,(IY+N)            ; FD CB XX 5E
-        BIT 4,(IY+N)            ; FD CB XX 66
-        BIT 5,(IY+N)            ; FD CB XX 6E
-        BIT 6,(IY+N)            ; FD CB XX 76
-        BIT 7,(IY+N)            ; FD CB XX 7E
-        RES 0,(IY+N)            ; FD CB XX 86
-        RES 1,(IY+N)            ; FD CB XX 8E
-        RES 2,(IY+N)            ; FD CB XX 96
-        RES 3,(IY+N)            ; FD CB XX 9E
-        RES 4,(IY+N)            ; FD CB XX A6
-        RES 5,(IY+N)            ; FD CB XX AE
-        RES 6,(IY+N)            ; FD CB XX B6
-        RES 7,(IY+N)            ; FD CB XX BE
-        SET 0,(IY+N)            ; FD CB XX C6
-        SET 1,(IY+N)            ; FD CB XX CE
-        SET 2,(IY+N)            ; FD CB XX D6
-        SET 3,(IY+N)            ; FD CB XX DE
-        SET 4,(IY+N)            ; FD CB XX E6
-        SET 5,(IY+N)            ; FD CB XX EE
-        SET 6,(IY+N)            ; FD CB XX F6
-        SET 7,(IY+N)            ; FD CB XX FE
         POP IY                  ; FD E1
         EX (SP),IY              ; FD E3
         PUSH IY                 ; FD E5
         JP (IY)                 ; FD E9
         LD SP,IY                ; FD F9
-        CP N                    ; FE XX
         RST 38H                 ; FF
-
+        NOP                     ; 00
+        INC BC                  ; 03
+        INC B                   ; 04
+        LD B,XX                  ; 06 XX
+        INC C                   ; 0C
+        LD C,XX                  ; 0E XX
+        DJNZ XX                ; 10 XX
+        INC DE                  ; 13
+        INC D                   ; 14
+        LD D,XX                  ; 16 XX
+        INC E                   ; 1C
+        LD E,XX                  ; 1E XX
+        JR NZ,XX               ; 20 XX
+        INC HL                  ; 23
+        INC H                   ; 24
+        LD H,XX                  ; 26 XX
+        INC L                   ; 2C
+        LD L,XX                  ; 2E XX
+        JR NC,XX               ; 30 XX
+        INC SP                  ; 33
+        INC (HL)                ; 34
+        LD (HL),XX               ; 36 XX
+        INC A                   ; 3C
+        LD A,XX                  ; 3E XX
+        AND B                   ; A0
+        AND C                   ; A1
+        AND D                   ; A2
+        AND E                   ; A3
+        AND H                   ; A4
+        AND L                   ; A5
+        AND (HL)                ; A6
+        AND A                   ; A7
+        RET NZ                  ; C0
+        JP NZ,XXXX               ; C2 XX XX
+        CALL NZ,XXXX              ; C4 XX XX
+        ADD A,XX                 ; C6 XX
+        ADC A,XX                 ; CE XX
+        RET NC                  ; D0
+        JP NC,XXXX               ; D2 XX XX
+        OUT (XX),A               ; D3 XX
+        CALL NC,XXXX              ; D4 XX XX
+        CALL NC,XXXX              ; D4 XX XX
+        SUB XX                   ; D6 XX
+        IN A,(XX)                ; DB XX
+        INC IX                  ; DD 23
+        INC (IX+XX)              ; DD 34 XX
+        DEC (IX+XX)              ; DD 35 XX
+        LD (IX+XX),XX             ; DD 36 XX XX
+        LD B,(IX+XX)             ; DD 46 XX
+        LD C,(IX+XX)             ; DD 4E XX
+        LD D,(IX+XX)             ; DD 56 XX
+        LD E,(IX+XX)             ; DD 5E XX
+        LD H,(IX+XX)             ; DD 66 XX
+        LD L,(IX+XX)             ; DD 6E XX
+        LD (IX+XX),B             ; DD 70 XX
+        LD (IX+XX),C             ; DD 71 XX
+        LD (IX+XX),D             ; DD 72 XX
+        LD (IX+XX),E             ; DD 73 XX
+        LD (IX+XX),H             ; DD 74 XX
+        LD (IX+XX),L             ; DD 75 XX
+        LD (IX+XX),A             ; DD 77 XX
+        LD A,(IX+XX)             ; DD 7E XX
+        ADD A,(IX+XX)            ; DD 86 XX
+        ADC A,(IX+XX)            ; DD 8E XX
+        SUB (IX+XX)              ; DD 96 XX
+        SBC A,(IX+XX)            ; DD 9E XX
+        AND (IX+XX)              ; DD A6 XX
+        XOR (IX+XX)              ; DD AE XX
+        OR (IX+XX)               ; DD B6 XX
+        CP (IX+XX)               ; DD BE XX
+        RLC (IX+XX)              ; DD CB XX 06
+        RRC (IX+XX)              ; DD CB XX 0E
+        RL (IX+XX)               ; DD CB XX 16
+        RR (IX+XX)               ; DD CB XX 1E
+        SLA (IX+XX)              ; DD CB XX 26
+        SRA (IX+XX)              ; DD CB XX 2E
+        BIT 0,(IX+XX)            ; DD CB XX 46
+        BIT 1,(IX+XX)            ; DD CB XX 4E
+        BIT 2,(IX+XX)            ; DD CB XX 56
+        BIT 3,(IX+XX)            ; DD CB XX 5E
+        BIT 4,(IX+XX)            ; DD CB XX 66
+        BIT 5,(IX+XX)            ; DD CB XX 6E
+        BIT 6,(IX+XX)            ; DD CB XX 76
+        BIT 7,(IX+XX)            ; DD CB XX 7E
+        RES 0,(IX+XX)            ; DD CB XX 86
+        RES 1,(IX+XX)            ; DD CB XX 8E
+        RES 2,(IX+XX)            ; DD CB XX 96
+        RES 3,(IX+XX)            ; DD CB XX 9E
+        RES 4,(IX+XX)            ; DD CB XX A6
+        RES 5,(IX+XX)            ; DD CB XX AE
+        RES 6,(IX+XX)            ; DD CB XX B6
+        RES 7,(IX+XX)            ; DD CB XX BE
+        SET 0,(IX+XX)            ; DD CB XX C6
+        SET 1,(IX+XX)            ; DD CB XX CE
+        SET 2,(IX+XX)            ; DD CB XX D6
+        SET 3,(IX+XX)            ; DD CB XX DE
+        SET 4,(IX+XX)            ; DD CB XX E6
+        SET 5,(IX+XX)            ; DD CB XX EE
+        SET 6,(IX+XX)            ; DD CB XX F6
+        SET 7,(IX+XX)            ; DD CB XX FE
+        SBC A,XX                 ; DE XX
+        AND XX                   ; E6 XX
+        IN B,(C)                ; ED 40
+        NEG                     ; ED 44
+        RETN                    ; ED 45
+        IN C,(C)                ; ED 48
+        IN D,(C)                ; ED 50
+        IN E,(C)                ; ED 58
+        IN H,(C)                ; ED 60
+        IN L,(C)                ; ED 68
+        IN A,(C)                ; ED 78
+        INI                     ; ED A2
+        IND                     ; ED AA
+        INIR                    ; ED B2
+        INDR                    ; ED BA
+        XOR XX                   ; EE XX
+        OR XX                    ; F6 XX
+        INC IY                  ; FD 23
+        INC (IY+XX)              ; FD 34 XX
+        DEC (IY+XX)              ; FD 35 XX
+        LD (IY+XX),XX             ; FD 36 XX XX
+        LD B,(IY+XX)             ; FD 46 XX
+        LD C,(IY+XX)             ; FD 4E XX
+        LD D,(IY+XX)             ; FD 56 XX
+        LD E,(IY+XX)             ; FD 5E XX
+        LD H,(IY+XX)             ; FD 66 XX
+        LD L,(IY+XX)             ; FD 6E XX
+        LD (IY+XX),B             ; FD 70 XX
+        LD (IY+XX),C             ; FD 71 XX
+        LD (IY+XX),D             ; FD 72 XX
+        LD (IY+XX),E             ; FD 73 XX
+        LD (IY+XX),H             ; FD 74 XX
+        LD (IY+XX),L             ; FD 75 XX
+        LD (IY+XX),A             ; FD 77 XX
+        LD A,(IY+XX)             ; FD 7E XX
+        ADD A,(IY+XX)            ; FD 86 XX
+        ADC A,(IY+XX)            ; FD 8E XX
+        SUB (IY+XX)              ; FD 96 XX
+        SBC A,(IY+XX)            ; FD 9E XX
+        AND (IY+XX)              ; FD A6 XX
+        XOR (IY+XX)              ; FD AE XX
+        OR (IY+XX)               ; FD B6 XX
+        CP (IY+XX)               ; FD BE XX
+        RLC (IY+XX)              ; FD CB XX 06
+        RRC (IY+XX)              ; FD CB XX 0E
+        RL (IY+XX)               ; FD CB XX 16
+        RR (IY+XX)               ; FD CB XX 1E
+        SLA (IY+XX)              ; FD CB XX 26
+        SRA (IY+XX)              ; FD CB XX 2E
+        BIT 0,(IY+XX)            ; FD CB XX 46
+        BIT 1,(IY+XX)            ; FD CB XX 4E
+        BIT 2,(IY+XX)            ; FD CB XX 56
+        BIT 3,(IY+XX)            ; FD CB XX 5E
+        BIT 4,(IY+XX)            ; FD CB XX 66
+        BIT 5,(IY+XX)            ; FD CB XX 6E
+        BIT 6,(IY+XX)            ; FD CB XX 76
+        BIT 7,(IY+XX)            ; FD CB XX 7E
+        RES 0,(IY+XX)            ; FD CB XX 86
+        RES 1,(IY+XX)            ; FD CB XX 8E
+        RES 2,(IY+XX)            ; FD CB XX 96
+        RES 3,(IY+XX)            ; FD CB XX 9E
+        RES 4,(IY+XX)            ; FD CB XX A6
+        RES 5,(IY+XX)            ; FD CB XX AE
+        RES 6,(IY+XX)            ; FD CB XX B6
+        RES 7,(IY+XX)            ; FD CB XX BE
+        SET 0,(IY+XX)            ; FD CB XX C6
+        SET 1,(IY+XX)            ; FD CB XX CE
+        SET 2,(IY+XX)            ; FD CB XX D6
+        SET 3,(IY+XX)            ; FD CB XX DE
+        SET 4,(IY+XX)            ; FD CB XX E6
+        SET 5,(IY+XX)            ; FD CB XX EE
+        SET 6,(IY+XX)            ; FD CB XX F6
+        SET 7,(IY+XX)            ; FD CB XX FE
+        CP XX                    ; FE XX
