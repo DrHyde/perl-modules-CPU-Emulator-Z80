@@ -2672,3 +2672,6 @@ t/10-io-IN_A_N.t
 t/11-io-IN_r_C.t
 t/fuse-tests/COPYING
 t/12-output.t
+lib/CPU/Emulator/Z80/Manual.pod
+lib/CPU/Emulator/Z80/Internals.pod
+lib/CPU/Emulator/Z80/Assembler.pm

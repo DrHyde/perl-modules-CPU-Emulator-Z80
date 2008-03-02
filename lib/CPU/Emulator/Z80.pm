@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.47 2008/02/28 23:10:53 drhyde Exp $
+# $Id: Z80.pm,v 1.48 2008/03/02 19:33:23 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -1025,12 +1025,9 @@ sub _LDI {
 }
 sub _LDIR {
     my $self = shift;
-    for(1 .. $self->register('BC')->get() - 1) {
-        # mmm, voodoo
-        $self->register('R')->inc();
-        $self->register('R')->inc();
-    }
-    _LDI($self) while($self->register('BC')->get());
+    _LDI($self);
+    $self->register('PC')->set($self->register('PC')->get() - 2)
+        if($self->register('BC')->get());
 }
 sub _LDD {
     my $self = shift;
@@ -1039,6 +1036,12 @@ sub _LDD {
     $self->register('DE')->sub(2);
     $self->register('HL')->sub(2);
     _swap_regs($self, qw(W F));
+}
+sub _LDDR {
+    my $self = shift;
+    _LDD($self);
+    $self->register('PC')->set($self->register('PC')->get() - 2)
+        if($self->register('BC')->get());
 }
 sub _CPI {
     my $self = shift;
@@ -1057,26 +1060,12 @@ sub _CPI {
         ($self->register('Z')->get() - $f->getH()) & 0b1000
     );
 }
-sub _LDDR {
-    my $self = shift;
-    for(1 .. $self->register('BC')->get() - 1) {
-        # mmm, voodoo
-        $self->register('R')->inc();
-        $self->register('R')->inc();
-    }
-    _LDD($self) while($self->register('BC')->get());
-}
 sub _CPIR {
     my $self = shift;
-    # CPI's result can be found in Z
-    _LD_r8_imm($self, 'Z', 1);
-    while($self->register('BC')->get()  && $self->register('Z')->get()) {
-        _CPI($self);
-        if($self->register('Z')->get()) {
-            $self->register('R')->inc();
-            $self->register('R')->inc();
-        }
-    }
+    _CPI($self);
+    $self->register('PC')->set($self->register('PC')->get() - 2)
+        if($self->register('BC')->get() && $self->register('Z')->get());
+    
 }
 sub _CPD {
     my $self = shift;
@@ -1087,14 +1076,9 @@ sub _CPD {
 }
 sub _CPDR {
     my $self = shift;
-    _LD_r8_imm($self, 'Z', 1);
-    while($self->register('BC')->get() && $self->register('Z')->get()) {
-        _CPD($self);
-        if($self->register('BC')->get() && $self->register('Z')->get()) {
-            $self->register('R')->inc();
-            $self->register('R')->inc();
-        }
-    }
+    _CPD($self);
+    $self->register('PC')->set($self->register('PC')->get() - 2)
+        if($self->register('BC')->get() && $self->register('Z')->get());
 }
 sub _RLD {
     my $self = shift;
@@ -1652,6 +1636,9 @@ L<http://www.abebooks.com/servlet/SearchResults?an=zaks&tn=programming+the+z80>.
 =head1 BUGS/WARNINGS/LIMITATIONS
 
 Claims about making your code faster may not be true in all realities.
+
+I assume you're using a twos-complement machine.  I *think* that
+that's true of anything perl runs on.
 
 Only interrupt mode 1 is implemented.  All interrupts are serviced
 by a RST 0x38 instruction.
