@@ -1,4 +1,4 @@
-# $Id: Assembler.pm,v 1.2 2008/03/02 23:41:21 drhyde Exp $
+# $Id: Assembler.pm,v 1.3 2008/03/04 23:06:27 drhyde Exp $
 
 package CPU::Emulator::Z80::Assembler;
 
@@ -44,7 +44,9 @@ By default the 'z80asm' subroutine is exported.  To disable that, do:
 
     use CPU::Emulator::Z80::Assembler ();
 
-=head1 THE z80asm SUBROUTINE
+=head1 FUNCTIONS
+
+=head2 z80asm
 
 This takes one parameter, a string of Z80 assembler source.  It
 returns the assembled version as a string, with any gaps padded

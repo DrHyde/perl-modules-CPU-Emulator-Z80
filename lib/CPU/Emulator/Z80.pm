@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.48 2008/03/02 19:33:23 drhyde Exp $
+# $Id: Z80.pm,v 1.49 2008/03/04 23:06:27 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -1557,10 +1557,31 @@ sub _IN_r_C {
     $f->set3($r->get() & 0b1000);
     $f->setP(ALU_parity($r->get()));
 }
-sub _IND {}
-sub _INI {}
-sub _INDR {}
-sub _INIR {}
+sub _IND {
+    my $self = shift;
+    _IN_r_C($self, '(HL)');
+    _LD_indHL_r8($self, 'W', 0);
+    $self->register($_)->dec() foreach(qw(HL B));
+}
+sub _INI {
+    my $self = shift;
+    _IN_r_C($self, '(HL)');
+    _LD_indHL_r8($self, 'W');
+    $self->register('HL')->inc();
+    $self->register('B')->dec();
+}
+sub _INDR {
+    my $self = shift;
+    _IND($self);
+    $self->register('PC')->set($self->register('PC')->get() - 2)
+        if($self->register('B')->get());
+}
+sub _INIR {
+    my $self = shift;
+    _INI($self);
+    $self->register('PC')->set($self->register('PC')->get() - 2)
+        if($self->register('B')->get());
+}
 
 sub _OUT_n_A { # output A to B<<8 + n
     my($self, $n) = @_;

@@ -2675,3 +2675,4 @@ t/12-output.t
 lib/CPU/Emulator/Z80/Manual.pod
 lib/CPU/Emulator/Z80/Internals.pod
 lib/CPU/Emulator/Z80/Assembler.pm
+t/13-IND-INI-INDR-INIR.t

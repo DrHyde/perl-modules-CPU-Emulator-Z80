@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.20 2008/02/28 23:10:53 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.21 2008/03/04 23:06:27 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -17,10 +17,10 @@ my @tests = grep { $ARGV{"$_.in.yml"} || !keys(%ARGV) }
                     5[0189]|
                     6[0189]|
                     7[0189]|
-                    # A2| # INI
-                    # AA| # IND
-                    # B2| # INIR
-                    # BA| # INDR
+                    A2| # INI
+                    AA| # IND
+                    B2| # INIR
+                    BA| # INDR
                     hlagh
                 )|
                 ddfd|fddd          # magic instrs, tested elsewhere
@@ -120,10 +120,6 @@ foreach my $yamlfile (@tests) {
           6[56D]|
           7[5D]|
           A[3B]|
-          A2| # INI
-          AA| # IND
-          B2| # INIR
-          BA| # INDR
           B[3B]
         )
     )/x) {
