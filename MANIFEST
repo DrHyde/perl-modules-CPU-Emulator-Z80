@@ -8,7 +8,6 @@ TODO
 lib/CPU/Emulator/Z80/Register.pm
 lib/CPU/Emulator/Z80/Register16.pm
 lib/CPU/Emulator/Z80/Register8.pm
-NOTES
 t/00-register8f-methods.t
 lib/CPU/Emulator/Z80/ALU.pm
 lib/CPU/Emulator/Z80/Register8F.pm

@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.50 2008/03/08 14:41:55 drhyde Exp $
+# $Id: Z80.pm,v 1.51 2008/03/08 14:49:57 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -389,6 +389,7 @@ to easily determine why the run() method returned.
 =cut
 
 # SEE http://www.z80.info/decoding.htm
+#     http://www.z80.info/z80sflag.htm
 # NB when decoding, x == first 2 bits, y == next 3, z == last 3
 #                   p == first 2 bits of y, q == last bit of y
 my @TABLE_R   = (qw(B C D E H L (HL) A));
