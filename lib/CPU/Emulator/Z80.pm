@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.49 2008/03/04 23:06:27 drhyde Exp $
+# $Id: Z80.pm,v 1.50 2008/03/08 14:41:55 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -1210,9 +1210,7 @@ sub _LD_A_IR {
     $f->set3($a->get() & 0b1000);
     $f->setS($a->get() & 0x80);
     $f->setZ($a->get() == 0);
-    $f->setP(do {
-        # contents of IFF2
-    });
+    $f->setP($self->{iff2});
 }
 sub _NEG {
     my $self = shift();
@@ -1557,6 +1555,26 @@ sub _IN_r_C {
     $f->set3($r->get() & 0b1000);
     $f->setP(ALU_parity($r->get()));
 }
+
+sub _OUT_n_A { # output A to B<<8 + n
+    my($self, $n) = @_;
+    $self->_put_to_output(
+        ($self->register('B')->get() << 8) + $n,
+        $self->register('A')->get()
+    );
+}
+sub _OUT_C_r {
+    my($self, $r) = @_;
+    $self->_put_to_output(
+        $self->register('BC')->get(),
+        $self->register($r)->get()
+    );
+}
+sub _OUT_C_0 {
+    my $self = shift();
+    $self->register('W')->set(0);
+    _OUT_C_r($self, 'W');
+}
 sub _IND {
     my $self = shift;
     _IN_r_C($self, '(HL)');
@@ -1582,30 +1600,36 @@ sub _INIR {
     $self->register('PC')->set($self->register('PC')->get() - 2)
         if($self->register('B')->get());
 }
-
-sub _OUT_n_A { # output A to B<<8 + n
-    my($self, $n) = @_;
-    $self->_put_to_output(
-        ($self->register('B')->get() << 8) + $n,
-        $self->register('A')->get()
-    );
-}
-sub _OUT_C_r {
-    my($self, $r) = @_;
+sub _OUTD {
+    my $self = shift;
+    $self->register('B')->dec();
     $self->_put_to_output(
         $self->register('BC')->get(),
-        $self->register($r)->get()
+        $self->memory()->peek($self->register('HL')->get())
     );
+    $self->register('HL')->dec();
 }
-sub _OUT_C_0 {
-    my $self = shift();
-    $self->register('W')->set(0);
-    _OUT_C_r($self, 'W');
+sub _OUTI {
+    my $self = shift;
+    $self->register('B')->dec();
+    $self->_put_to_output(
+        $self->register('BC')->get(),
+        $self->memory()->peek($self->register('HL')->get())
+    );
+    $self->register('HL')->inc();
 }
-sub _OTDR {}
-sub _OTIR {}
-sub _OUTD {}
-sub _OUTI {}
+sub _OTDR {
+    my $self = shift;
+    _OUTD($self);
+    $self->register('PC')->set($self->register('PC')->get() - 2)
+        if($self->register('B')->get());
+}
+sub _OTIR {
+    my $self = shift;
+    _OUTI($self);
+    $self->register('PC')->set($self->register('PC')->get() - 2)
+        if($self->register('B')->get());
+}
 
 sub _IM {} # everything is IM 1
 

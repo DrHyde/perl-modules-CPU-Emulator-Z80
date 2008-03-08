@@ -1,4 +1,4 @@
-# $Id: 04-FUSE-tests.t,v 1.21 2008/03/04 23:06:27 drhyde Exp $
+# $Id: 04-FUSE-tests.t,v 1.22 2008/03/08 14:41:55 drhyde Exp $
 # FUSE tester is at http://fuse-emulator.svn.sourceforge.net/viewvc/fuse-emulator/trunk/fuse/z80/coretest.c?revision=3414&view=markup
 
 use strict;
@@ -10,24 +10,17 @@ my @tests = grep { $ARGV{"$_.in.yml"} || !keys(%ARGV) }
             map { s/\.in\.yml$//; "t/fuse-tests/$_"; }
             grep { -f "t/fuse-tests/$_" && /\.in\.yml$/ }
             grep { $_ !~ /^(
-                db|             # IO instrs, tested elsewhere
-                d3|
-                ed(
-                    4[0189]|
-                    5[0189]|
-                    6[0189]|
-                    7[0189]|
-                    A2| # INI
-                    AA| # IND
-                    B2| # INIR
-                    BA| # INDR
-                    hlagh
+                db|               # IO instrs, tested elsewhere
+                d3|               # FIXME really should use FUSE
+                ed(               # tests for these too
+                    [4567][0189]|
+                    [AB][23AB]
                 )|
-                ddfd|fddd          # magic instrs, tested elsewhere
+                ddfd|fddd         # magic instrs, tested elsewhere
             )/ix } readdir($dir);
 closedir($dir);
 
-print "1..".scalar(@tests)."\n";
+eval 'use Test::More tests => scalar(@tests);';
 
 use CPU::Emulator::Z80;
 use YAML::Tiny;
@@ -52,9 +45,7 @@ open($fh, 't/fuse-tests/testnames') && do {
     close($fh);
 };
 
-my $test = 0;
 foreach my $yamlfile (@tests) {
-    $test++;
     my $y = YAML::Tiny->read("$yamlfile.in.yml");
     my $cpu = CPU::Emulator::Z80->new(
         memory => CPU::Emulator::Memory->new(
@@ -114,25 +105,12 @@ foreach my $yamlfile (@tests) {
                    "#\n# finished with\n".$cpu->format_registers()
     }
 
-    if($errors && uc($y->[0]->{name}) =~ /^(
-        ED(
-          5[57DF]|
-          6[56D]|
-          7[5D]|
-          A[3B]|
-          B[3B]
-        )
-    )/x) {
-        print "ok $test # skip ".uc($y->[0]->{name})." I/O\n";
-        print "# $testnames{$y->[0]->{name}}\n" if($testnames{$y->[0]->{name}});
-    } else {
-        print ''.($errors ? 'not ' : '')."ok $test -  \t".uc($y->[0]->{name}).": ".
-            (do {
-                $y->[0]->{name} =~ s/_.*//;
-                exists($testnames{$y->[0]->{name}})
-            } ? $testnames{$y->[0]->{name}} : '').
-            "\n";
-        print $errors;
-        last if($errors);
-    }
+    ok(!$errors, uc($y->[0]->{name}).": ".
+        (do {
+            $y->[0]->{name} =~ s/_.*//;
+            exists($testnames{$y->[0]->{name}})
+        } ? $testnames{$y->[0]->{name}} : '')
+    );
+    print $errors;
+    last if($errors);
 }
