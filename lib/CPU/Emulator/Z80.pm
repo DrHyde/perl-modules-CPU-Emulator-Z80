@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.51 2008/03/08 14:49:57 drhyde Exp $
+# $Id: Z80.pm,v 1.52 2008/03/08 15:19:48 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -81,6 +81,14 @@ CPU::Emulator::Memory::Banked is created of the appropriate size.  If not
 specified at all, then a CPU::Emulator::Memory::Banked is created with
 64K of zeroes.
 
+=item ports
+
+can be either 256 or 65536 (no other values are permitted) and defaults
+to 65536.  This is the number of I/O ports that can be addressed.
+If set to 65536, the entire address bus is used to determine what
+port I/O instructions tickle.  If 256, then the most significant 8
+bits are ignored.
+
 =item init_PC, init_A, init_B ...
 
 For each of A B C D E F R HL IX IY PC SP, an integer, the starting
@@ -115,6 +123,13 @@ sub new {
         $args{memory} = CPU::Emulator::Memory::Banked->new();
     }
 
+    if(exists($args{ports})) {
+        die("$args{ports} is a stupid number of ports\n")
+            unless($args{ports} == 256 || $args{ports} == 65536);
+    } else {
+        $args{ports} = 65536;
+    }
+
     foreach my $register (@REGISTERS, map { "${_}_" } @ALTREGISTERS) {
         $args{"init_$register"} = 0
             if(!exists($args{"init_$register"}));
@@ -125,6 +140,7 @@ sub new {
     $self = bless {
         iff1        => 0,
         iff2        => 0,
+        ports       => $args{ports},
         inputs      => {},
         outputs     => {},
         memory      => $args{memory},
@@ -221,13 +237,22 @@ input port at that address.  Reading from the port will call the
 function with no parameters,
 returning whatever the function returns.
 
+In 256-port mode, the port is replicated 256 times.
+
 =cut
 
 sub add_input_device {
     my($self, %params) = @_;
-    die(sprintf("Device already exists at %#06x", $params{address}))
-        if(exists($self->{inputs}->{$params{address}}));
-    $self->{inputs}->{$params{address}} = $params{function};
+
+    my @addresses = ($params{address});
+    if($self->{ports} == 256) {
+        @addresses = map { ($params{address} & 0xFF) | ($_ << 8) } (0 .. 255);
+    }
+    foreach(@addresses) {
+        die(sprintf("Device already exists at %#06x", $_))
+            if(exists($self->{inputs}->{$_}));
+        $self->{inputs}->{$_} = $params{function};
+    }
 }
 
 sub _get_from_input {
@@ -245,13 +270,22 @@ Takes two named parameters, 'address' and 'function', and creates an
 output port at that address.  Writing to the port simply calls that
 function with the byte to be written as its only parameter.
 
+In 256-port mode, the port is replicated 256 times.
+
 =cut
 
 sub add_output_device {
     my($self, %params) = @_;
-    die(sprintf("Device already exists at %#06x", $params{address}))
-        if(exists($self->{outputs}->{$params{address}}));
-    $self->{outputs}->{$params{address}} = $params{function};
+
+    my @addresses = ($params{address});
+    if($self->{ports} == 256) {
+        @addresses = map { ($params{address} & 0xFF) | ($_ << 8) } (0 .. 255);
+    }
+    foreach(@addresses) {
+        die(sprintf("Device already exists at %#06x", $_))
+            if(exists($self->{outputs}->{$_}));
+        $self->{outputs}->{$_} = $params{function};
+    }
 }
 
 sub _put_to_output {
