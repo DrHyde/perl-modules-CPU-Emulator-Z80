@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.52 2008/03/08 15:19:48 drhyde Exp $
+# $Id: Z80.pm,v 1.53 2008/03/08 15:26:28 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -237,26 +237,21 @@ input port at that address.  Reading from the port will call the
 function with no parameters,
 returning whatever the function returns.
 
-In 256-port mode, the port is replicated 256 times.
+In 256-port mode, the port is effectively replicated 256 times.
 
 =cut
 
 sub add_input_device {
     my($self, %params) = @_;
-
-    my @addresses = ($params{address});
-    if($self->{ports} == 256) {
-        @addresses = map { ($params{address} & 0xFF) | ($_ << 8) } (0 .. 255);
-    }
-    foreach(@addresses) {
-        die(sprintf("Device already exists at %#06x", $_))
-            if(exists($self->{inputs}->{$_}));
-        $self->{inputs}->{$_} = $params{function};
-    }
+    my $address = $params{address} & ($self->{ports} - 1);
+    die(sprintf("Device already exists at %#06x", $address))
+        if(exists($self->{inputs}->{$address}));
+    $self->{inputs}->{$address} = $params{function};
 }
 
 sub _get_from_input {
     my($self, $addr) = @_;
+    $addr  = $addr & ($self->{ports} - 1);
     if(exists($self->{inputs}->{$addr})) {
         return $self->{inputs}->{$addr}->();
     } else {
@@ -270,26 +265,21 @@ Takes two named parameters, 'address' and 'function', and creates an
 output port at that address.  Writing to the port simply calls that
 function with the byte to be written as its only parameter.
 
-In 256-port mode, the port is replicated 256 times.
+In 256-port mode, the port is effectively replicated 256 times.
 
 =cut
 
 sub add_output_device {
     my($self, %params) = @_;
-
-    my @addresses = ($params{address});
-    if($self->{ports} == 256) {
-        @addresses = map { ($params{address} & 0xFF) | ($_ << 8) } (0 .. 255);
-    }
-    foreach(@addresses) {
-        die(sprintf("Device already exists at %#06x", $_))
-            if(exists($self->{outputs}->{$_}));
-        $self->{outputs}->{$_} = $params{function};
-    }
+    my $address = $params{address} & ($self->{ports} - 1);
+    die(sprintf("Device already exists at %#06x", $address))
+        if(exists($self->{outputs}->{$address}));
+    $self->{outputs}->{$address} = $params{function};
 }
 
 sub _put_to_output {
     my($self, $addr, $byte) = @_;
+    $addr  = $addr & ($self->{ports} - 1);
     if(exists($self->{outputs}->{$addr})) {
         $self->{outputs}->{$addr}->($byte);
     } else {
