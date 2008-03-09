@@ -1,4 +1,4 @@
-# $Id: Assembler.pm,v 1.3 2008/03/04 23:06:27 drhyde Exp $
+# $Id: Assembler.pm,v 1.4 2008/03/09 14:11:08 drhyde Exp $
 
 package CPU::Emulator::Z80::Assembler;
 
@@ -20,12 +20,7 @@ CPU::Emulator::Z80::Assembler - a Z80 assembler
 
 =head1 SYNOPSIS
 
-    z80asm(
-        in  => 'blah.z80',
-        out => 'blah.rom'
-    );
-
-    my $binary = z80asm(in => 'blah.z80');
+    use CPU::Emulator::Z80::Assembler;
 
     my $binary = z80asm(q{
         ORG 0x1000
@@ -54,12 +49,68 @@ with NULLs if necessary.
 
 =head1 SYNTAX
 
+Instructions are seperated by new lines, and have the following
+format.  They must be ASCII:
+
+[.label] INSTRUCTION [; optional comments]
+
+=head2 Numbers
+
+Numbers can be supplied in either decimal, hexadecimal, or binary.
+Hex numbers have a leading 0x, binary numbers have a leading 0b.
+
+=head2 Pseudo-instructions
+
+=over
+
+=item DEFB 0x12
+
+A byte of data
+
+=item DEFW 0x1234
+
+A 16-bit word of data, in little-endian order.  So the
+example would actually insert 0x34 followed by 0x12.
+
+=item DEFT "literal text", 0x00
+
+A literal string, double-quoted.  Can optionally be followed by a
+comma-seperated list of bytes.  The quoted text can not include
+double-quotes or new lines.
+
+=item ORG 0x4567
+
+Tell the assembler to start building the code at this address.  Must
+be the first instruction and can only appear once.  If absent,
+defaults to 0x0000.
+
+=back
+
+=head2 Mnemonics
+
+Standard Z80 mnemonics are used.  The high and low halfs of the
+IX and IY registers are called HIX, LIX, HIY and HIY.
+
+=head2 Labels
+
+Labels are preceded by a dot, must start with a letter or underscore,
+and consist solely of letters, underscores and numbers.  They default
+to having the value of the address they are at.  If you want to assign
+another value, then you can say:
+
+    .label = 0x1234
+
 =cut
 
 sub z80asm {
     my $source = shift();
-    local $/ = "\n";
+    my $dictionary = _build_dictionary();
+    my @instructions = split(/[\r\n]+/, $source);
+    my $address = 0x0000;
+}
 
+my _build_dictionary {
+    local $/ = "\n";
     my %mapping = ();
     while(my $line = <DATA>) {
         $line =~ s/^\s+|\s$//g;
@@ -78,9 +129,9 @@ sub z80asm {
             }
         }
     }
-    print Dumper(\%mapping);
+    # print Dumper(\%mapping);
+    return \%mapping;
 }
-
 
 # careful - LD (IX+XX),XX
 #         - JR, DJNZ
