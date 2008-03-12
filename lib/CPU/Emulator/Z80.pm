@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.53 2008/03/08 15:26:28 drhyde Exp $
+# $Id: Z80.pm,v 1.54 2008/03/12 22:33:18 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -7,7 +7,7 @@ use warnings;
 
 use vars qw($VERSION %INSTR_LENGTHS %INSTR_DISPATCH);
 
-$VERSION = '1.0';
+$VERSION = '0.9';
 
 $SIG{__WARN__} = sub {
     warn(__PACKAGE__.": $_[0]\n");

@@ -1,7 +1,2 @@
-flag tests in t/11-io-IN_r_C.t
-0.1s clock ticker
-kb input select() loop
-get an assembler for the host - google://z80+assembler+(unix|perl)
-get an assembler in Z80 source, ROMify it
-
-OUTI / OUTD / OTIR / OTDR
+Finish writing Internals.pod
+t/z80-calc-parity-table.t

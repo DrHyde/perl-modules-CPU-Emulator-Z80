@@ -3,7 +3,6 @@ README
 MANIFEST
 Makefile.PL
 lib/CPU/Emulator/Z80.pm
-bin/z80masm
 TODO
 lib/CPU/Emulator/Z80/Register.pm
 lib/CPU/Emulator/Z80/Register16.pm
@@ -14,7 +13,6 @@ lib/CPU/Emulator/Z80/Register8F.pm
 t/01-register8-methods.t
 t/02-register16-methods.t
 t/03-cpu-constructor-and-register-access.t
-opcodes.txt
 t/fuse-tests/00.expected.yml
 t/fuse-tests/00.in.yml
 t/fuse-tests/01.expected.yml
@@ -2663,7 +2661,7 @@ t/06-register16sp-methods.t
 t/07-magic-instructions.t
 t/pod-coverage.t
 t/pod.t
-t/z80-calc-parity-table.t
+t/z80-calc-parity-table.t~
 t/coverage.sh
 t/08-interrupts.t
 t/09-nmi.t
@@ -2673,7 +2671,6 @@ t/fuse-tests/COPYING
 t/12-output.t
 lib/CPU/Emulator/Z80/Manual.pod
 lib/CPU/Emulator/Z80/Internals.pod
-lib/CPU/Emulator/Z80/Assembler.pm
 t/13-IND-INI-INDR-INIR.t
 t/14-OUTD-OUTI-OTDR-OTIR.t
 t/15-number-of-ports.t
