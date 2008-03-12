@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.54 2008/03/12 22:33:18 drhyde Exp $
+# $Id: Z80.pm,v 1.55 2008/03/12 22:42:33 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -43,13 +43,8 @@ CPU::Emulator::Z80 - a Z80 emulator
     my $cpu = CPU::Emulator::Z80->new();
 
     # set a breakpoint
-    $cpu->memory()->bank(
-        address => 8, # RST 1
-        size    => 1,
-        type    => 'dynamic',
-        function_read  => sub { die("Breakpoint reached"); },
-        function_write => sub { }
-    );
+    $cpu->memory()->poke16(0xF000, 0xDDDD); # STOP instruction
+    $cpu->memory()->poke(0xF002, 0x00);
 
     $cpu->memory()->poke(0, 0xC3);     # JP 0xC000
     $cpu->memory()->poke16(1, 0xC000);
@@ -1713,12 +1708,10 @@ that's true of anything perl runs on.
 Only interrupt mode 1 is implemented.  All interrupts are serviced
 by a RST 0x38 instruction.
 
-The DDCB- and FDCB-prefixed instructions are not yet implemented.
-
 The DDFD- and FDDD-prefixed instructions (the "use this index
 register - no, wait, I meant the other one" prefixes) and the DDDD-
 and FDFD-prefixed instructions (the "use this index register, no
-really, I mean it, pleeeeease"i prefixes) are silly,
+really, I mean it, pleeeeease" prefixes) are silly,
 and have been replaced - see "Extra Instructions" above.
 
 =head1 FEEDBACK
