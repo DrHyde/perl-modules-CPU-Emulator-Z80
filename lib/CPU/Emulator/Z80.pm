@@ -1,4 +1,4 @@
-# $Id: Z80.pm,v 1.56 2008/06/13 14:42:08 drhyde Exp $
+# $Id: Z80.pm,v 1.57 2008/06/13 20:46:41 drhyde Exp $
 
 package CPU::Emulator::Z80;
 
@@ -1728,24 +1728,23 @@ a patch yourself.
 
 L<Acme::6502>
 
+L<CPU::Z80::Assembler>
+
 The FUSE Free Unix Spectrum Emulator: L<http://fuse-emulator.sourceforge.net/>
 
 =head1 CVS
 
 L<http://drhyde.cvs.sourceforge.net/drhyde/perlmodules/CPU-Emulator-Z80/>
 
-=head1 AUTHOR, LICENCE and COPYRIGHT
+=head1 AUTHOR, COPYRIGHT and LICENCE
 
 Copyright 2008 David Cantrell E<lt>F<david@cantrell.org.uk>E<gt>
 
-This module is free-as-in-speech software, and may be used,
-distributed, and modified under the terms of the GNU General Public
-Licence version 2, or any later version if you prefer.
-
-Note that this differs from the licence for the other modules.  That is
-because the bulk of this particular module's test suite is derived from
-FUSE, which is GPLed.  A copy of the GPL can be found in the
-t/fuse-tests/COPYING file.
+This software is free-as-in-speech software, and may be used,
+distributed, and modified under the terms of either the GNU
+General Public Licence version 2 or the Artistic Licence.  It's
+up to you which one you use.  The full text of the licences can
+be found in the files GPL2.txt and ARTISTIC.txt, respectively.
 
 =head1 CONSPIRACY
 

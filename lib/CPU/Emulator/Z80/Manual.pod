@@ -1,4 +1,4 @@
-# $Id: Manual.pod,v 1.1 2008/03/02 19:33:24 drhyde Exp $
+# $Id: Manual.pod,v 1.2 2008/06/13 20:46:41 drhyde Exp $
 =head1 NAME
 
 CPU::Emulator::Z80::Manual
@@ -219,6 +219,8 @@ port 0xC000 will return how many values are in the buffer.
 L<CPU::Emulator::Z80>
 
 L<CPU::Emulator::Memory>
+
+L<CPU::Z80::Assembler>
 
 =head1 AUTHOR, LICENCE and COPYRIGHT
 

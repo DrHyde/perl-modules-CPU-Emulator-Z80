@@ -2677,3 +2677,5 @@ t/90-realcode.t
 t/multiply.bin
 t/multiply.z80
 interrupt-HOWTO
+ARTISTIC.txt
+GPL2.txt
