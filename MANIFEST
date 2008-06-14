@@ -2679,3 +2679,5 @@ t/multiply.z80
 interrupt-HOWTO
 ARTISTIC.txt
 GPL2.txt
+example/0x0000.z80
+example/OS-overview.pod
