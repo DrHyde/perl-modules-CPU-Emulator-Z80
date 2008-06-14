@@ -1,0 +1,45 @@
+=head1 OPERATING SYSTEM OVERVIEW
+
+=head2 HARDWARE
+
+There is 64K of memory and maximum of 256 ports.  Input ports are
+arranged in pairs - the first of each pair, when read, will tell
+how many bytes are available to be read.  The second is where
+actual data is available.
+
+=head2 BOOTING
+
+The machine starts executing at 0x0000, so that's where the
+initialisation code is.  It starts by zeroing registers.  While
+they are 0 at power-on, they won't be 0 at a reset.  There are just
+8 bytes here, ending with a jump to immediately after the RST
+vectors.
+
+    DI               ; 1 byte
+    IM 1             ; 2 bytes
+    LD HL, 0x0x0000  ; 3 bytes
+    JR $init_part2   ; 2 bytes
+
+    ...
+
+  $init_part2
+    LD SP, HL        ; set stack to be at the top of memory
+
+It then reads each port in turn until no more data are available,
+flushing them.  Finally, the file C<shell.cmd> is executed.
+
+=head1 REGISTERS
+
+The alternate register set is used by OS functions.
+
+=head1 MEMORY MAP
+
+Bytes 0x0000 to 0x00FF are reserved for the OS.  Bytes 0xFF80 to
+0xFFFF are reserved for the stack.
+
+=head1 ACCESS TO OS FUNCTIONS
+
+Parameters are passed via the stack, and are all sixteen bits long
+The last parameter passed should be the function number to call.
+To execute the function, C<CALL $osfunc>.
+

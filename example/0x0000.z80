@@ -1,0 +1,89 @@
+ORG 0x0000
+$rst0
+  DI               ; 1 byte
+  IM 1             ; 2 bytes
+  LD HL, 0x0000    ; 3 bytes
+  JR $init_part2   ; 2 bytes - jump to immediately after RST block
+  
+$rst1
+  DEFT "8 bytes", 0x00
+$rst1
+  DEFT "8 bytes", 0x00
+$rst1
+  DEFT "8 bytes", 0x00
+$rst1
+  DEFT "8 bytes", 0x00
+$rst1
+  DEFT "8 bytes", 0x00
+$rst1
+  DEFT "8 bytes", 0x00
+$rst1
+  DEFT "8 bytes", 0x00
+  
+$init_part2             ;           0x0040
+  LD SP, HL             ; 1 byte      initialise stack
+
+  LD B, 0x80            ; 2 bytes     num ports to slurp
+  LD C, 0x00            ; 2 bytes     port to start at
+$slurp_port_loop
+  LD HL, $os_readport   ; 3 bytes   \
+  PUSH BC               ; 1 byte    | set up stack for call
+  PUSH HL               ; 1 byte    /
+  CALL $osfunc          ; 3 bytes     ; leaves addr of data on stack
+
+  LD HL, $os_freemem    ; 3 bytes     ; free that memory block
+  PUSH HL               ; 1 byte
+  CALL $osfunc          ; 3 bytes
+
+  INC C                 ; 1 byte
+  INC C                 ; 1 byte      point at next port
+  DJNZ $slurp_port_loop ; 2 bytes
+
+  LD HL, $shell_name    ; 3 bytes
+  LD BC, $os_exec       ; 3 bytes
+  PUSH HL               ; 1 byte
+  PUSH BC               ; 1 byte
+  CALL $osfunc          ; 3 bytes
+  JP 0x0000             ; 3 bytes
+
+$nmi                    ;            0x0066
+  DEFT '', 0x00, 0x00, 0x00, 0x00
+
+$shell_name
+  DEFT "shell.cmd", 0x00
+
+$osfunc
+  ; on entry, stack is param1, param2, funcno, retaddr
+  LD ($osfunc__hl_store + 1), HL  ; store HL so we can restore it later
+  LD ($osfunc__de_store + 1), DE  ; store DE
+  LD ($osfunc__bc_store + 1), BC  ;
+  PUSH AF
+  POP HL
+  LD ($osfunc__af_store + 1), AF  ;
+
+  POP HL
+  LD ($osfunc__ret_store + 1), HL ; store RET address
+  ; stack is now param1, param2, funcno
+  POP HL
+  LD DE, $osfunc__ret_from_function
+  PUSH DE
+  ; stack is now param1, param2, $osfunc__ret_from_function
+  JP (HL)                        ; jump to function number
+$osfunc__ret_from_function
+$osfunc__af_store
+  LD HL, 0x0000                  ; 0x0000 is replaced
+  PUSH HL
+  POP AF
+$osfunc__hl_store
+  LD HL, 0x0000                  ; 0x0000 is replaced
+$osfunc__de_store
+  LD DE, 0x0000                  ; 0x0000 is replaced
+$osfunc__bc_store
+  LD BC, 0x0000                  ; 0x0000 is replaced
+$osfunc__ret_store
+  JP 0x0000                      ; 0x0000 is replaced - osfunc's RET
+
+; on entry stack is param1, param2, ..., retaddr
+$os_readport
+$os_freemem
+$os_exec
