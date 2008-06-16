@@ -9,37 +9,36 @@ actual data is available.
 
 =head2 BOOTING
 
-The machine starts executing at 0x0000, so that's where the
-initialisation code is.  It starts by zeroing registers.  While
-they are 0 at power-on, they won't be 0 at a reset.  There are just
-8 bytes here, ending with a jump to immediately after the RST
-vectors.
+The OS loaded into RAM (it needs to be in RAM because there's
+self-modifying code in there) at address 0x0000.  The ROM is then
+swapped out, and the machine jumps to 0x0000.
 
-    DI               ; 1 byte
-    IM 1             ; 2 bytes
-    LD HL, 0x0x0000  ; 3 bytes
-    JR $init_part2   ; 2 bytes
+There's just a few bytes here, and a jump past the RST block.
 
-    ...
-
-  $init_part2
-    LD SP, HL        ; set stack to be at the top of memory
+The stack is initialised and the memory-map reset.
 
 It then reads each port in turn until no more data are available,
-flushing them.  Finally, the file C<shell.cmd> is executed.
+flushing them.  The various bits of memory reserved for the OS are
+then marked as such in the memory map.  Finally, the file
+C<shell.cmd> is executed.
 
 =head1 REGISTERS
 
-The alternate register set is used by OS functions.
+The alternate register set may be used by OS functions.  Any
+functions that do so are un-interruptable.
 
 =head1 MEMORY MAP
 
-Bytes 0x0000 to 0x00FF are reserved for the OS.  Bytes 0xFF80 to
-0xFFFF are reserved for the stack.
+    0xFF80 to 0xFFFF: stack
+    0xFF00 to 0xFF7F: memory allocation bitmap
+                      each bit represents 64 bytes
+    ...
+    0x0000 to 0xXXXX: OS code
 
 =head1 ACCESS TO OS FUNCTIONS
 
 Parameters are passed via the stack, and are all sixteen bits long
 The last parameter passed should be the function number to call.
-To execute the function, C<CALL $osfunc>.
+To execute the function, C<RST 1>.  This preserves all registers.
+RST 1 itself is not re-entrant.
 

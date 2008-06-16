@@ -1,57 +1,13 @@
 ORG 0x0000
+MACRO OSFUNC {
+  RST 1
+}
 $rst0
-  DI               ; 1 byte
-  IM 1             ; 2 bytes
-  LD HL, 0x0000    ; 3 bytes
-  JR $init_part2   ; 2 bytes - jump to immediately after RST block
+  DI
+  IM 1
+  LD HL, 0x0000
+  JR $init__part2   ; jump to immediately after RST block
   
-$rst1
-  DEFT "8 bytes", 0x00
-$rst1
-  DEFT "8 bytes", 0x00
-$rst1
-  DEFT "8 bytes", 0x00
-$rst1
-  DEFT "8 bytes", 0x00
-$rst1
-  DEFT "8 bytes", 0x00
-$rst1
-  DEFT "8 bytes", 0x00
-$rst1
-  DEFT "8 bytes", 0x00
-  
-$init_part2             ;           0x0040
-  LD SP, HL             ; 1 byte      initialise stack
-
-  LD B, 0x80            ; 2 bytes     num ports to slurp
-  LD C, 0x00            ; 2 bytes     port to start at
-$slurp_port_loop
-  LD HL, $os_readport   ; 3 bytes   \
-  PUSH BC               ; 1 byte    | set up stack for call
-  PUSH HL               ; 1 byte    /
-  CALL $osfunc          ; 3 bytes     ; leaves addr of data on stack
-
-  LD HL, $os_freemem    ; 3 bytes     ; free that memory block
-  PUSH HL               ; 1 byte
-  CALL $osfunc          ; 3 bytes
-
-  INC C                 ; 1 byte
-  INC C                 ; 1 byte      point at next port
-  DJNZ $slurp_port_loop ; 2 bytes
-
-  LD HL, $shell_name    ; 3 bytes
-  LD BC, $os_exec       ; 3 bytes
-  PUSH HL               ; 1 byte
-  PUSH BC               ; 1 byte
-  CALL $osfunc          ; 3 bytes
-  JP 0x0000             ; 3 bytes
-
-$nmi                    ;            0x0066
-  DEFT '', 0x00, 0x00, 0x00, 0x00
-
-$shell_name
-  DEFT "shell.cmd", 0x00
-
 $osfunc
   ; on entry, stack is param1, param2, funcno, retaddr
   LD ($osfunc__hl_store + 1), HL  ; store HL so we can restore it later
@@ -65,9 +21,7 @@ $osfunc
   LD ($osfunc__ret_store + 1), HL ; store RET address
   ; stack is now param1, param2, funcno
   POP HL
-  LD DE, $osfunc__ret_from_function
-  PUSH DE
-  ; stack is now param1, param2, $osfunc__ret_from_function
+  ; stack is now param1, param2
   JP (HL)                        ; jump to function number
 $osfunc__ret_from_function
 $osfunc__af_store
@@ -83,7 +37,83 @@ $osfunc__bc_store
 $osfunc__ret_store
   JP 0x0000                      ; 0x0000 is replaced - osfunc's RET
 
+$init__part2
+  LD SP, HL             ; initialise stack
+  JR $init__part3
+
+  DEFB 0
+
+$rst7
+  DEFT "0x38 int"
+  
+$init__part3
+
+; free all memory
+  LD B,  128
+  LD HL, 0xFF00
+$init__free_memory_loop
+  LD (HL), 0
+  INC HL
+  DJNZ $init__free_memory_loop
+
+; mark memory map and stack as used
+  LD A, 0x0F
+  LD (0xFF7F), A
+; mark OS as used
+  LD A, 0xF0
+  LD (0xFF00), A
+
+; now slurp all ports
+  LD B, 0x80            ; 2 bytes     num ports to slurp
+  LD C, 0x00            ; 2 bytes     port to start at
+  CALL $init__slurp_ports_loop
+
+; load/execute shell
+  LD HL, $shell_name
+  PUSH HL
+  LD HL, $os_exec
+  PUSH HL
+  OSFUNC
+
+  RST 0
+
+  DEFB 0
+
+$nmi                    ;            0x0066
+  LD ($nmi__hl_store + 1), HL
+  LD HL, $os_nmi
+  PUSH HL
+  RST 1
+$nmi__hl_store
+  LD HL, 0x0000         ; 0x0000 gets replaced
+  RETN
+
+$init__slurp_ports_loop
+  LD HL, $os_readport   ;    \
+  PUSH BC               ;    | set up stack for call
+  PUSH HL               ;    /
+  OSFUNC                ;      ; leaves addr of data on stack
+  LD HL, $os_freemem    ;      ; free that memory block
+  PUSH HL               ;
+  OSFUNC                ; 
+  INC C                 ; 
+  INC C                 ;      point at next port
+  DJNZ $init__slurp_ports_loop
+  RET
+
+$shell_name
+  DEFT "shell.cmd", 0x00
+
+; memory allocation bitmap
+
 ; on entry stack is param1, param2, ..., retaddr
+$os_nmi
+$os_malloc__mark
+$os_malloc                      ; allocates 64 bytes, putting
+                                ; their address on the stack
+  JP $osfunc__ret_from_function
+
+$os_freemem                     ; de-allocates 64 bytes, taking the
+                                ; address to de-allocate from the stack
 $os_readport
-$os_freemem
 $os_exec
