@@ -7,13 +7,48 @@ arranged in pairs - the first of each pair, when read, will tell
 how many bytes are available to be read.  The second is where
 actual data is available.
 
-=head2 BOOTING
+=head3 PORTS
 
-The OS loaded into RAM (it needs to be in RAM because there's
-self-modifying code in there) at address 0x0000.  The ROM is then
-swapped out, and the machine jumps to 0x0000.
+=head4 OUTPUT
 
-There's just a few bytes here, and a jump past the RST block.
+=over
+
+=item 0 - mem_bank
+
+Write either 0, 1, 2 or 3 to indicate which chunk of memory to bank
+(meaning the 16K chunk starting at N * 0x4000) following by a byte
+indicating which ROM or which extra chunk of RAM to map in.
+
+=item 1 - mem_unbank
+
+Write either 0, 1, 2 or 3 to indicate which chunk of memory to unbank.
+
+=item 2 - io_wr_stdout
+
+Write a byte to the host machine's STDOUT.
+
+=item 0xFF - hw_start_clock
+
+Starts the machine clock.  The clock generates NMIs.  Writing anything
+to this port works.
+
+=back
+
+=head4 INPPUT
+
+=head2 BOOT LOADER
+
+The machine starts with PC = 0x0000, the Boot ROM paged in at 0x0000
+and the OS ROM paged in at 0x4000.
+
+The Boot loader first copies some code to the top of memory, then
+jumps to it.  That code disables the Boot ROM, copies the first
+256 bytes of the OS from the OS ROM to 0x0000, disables the
+OS ROM, starts the clock, then jumps to 0x0000.
+
+=head2 BOOTING THE OS
+
+There's just a few bytes 0x0000, and a jump past the RST block.
 
 The stack is initialised and the memory-map reset.
 

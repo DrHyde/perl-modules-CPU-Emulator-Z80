@@ -1,4 +1,5 @@
 ORG 0x0000
+INCLUDE "example/constants.z80"
 MACRO OSFUNC {
   RST 1
 }
