@@ -34,7 +34,7 @@ to this port works.
 
 =back
 
-=head4 INPPUT
+=head4 INPUT
 
 =head2 BOOT LOADER
 
@@ -70,10 +70,15 @@ functions that do so are un-interruptable.
     ...
     0x0000 to 0xXXXX: OS code
 
-=head1 ACCESS TO OS FUNCTIONS
+=head1 ACCESS TO OS FUNCTIONS FROM USER CODE
 
 Parameters are passed via the stack, and are all sixteen bits long
 The last parameter passed should be the function number to call.
 To execute the function, C<RST 1>.  This preserves all registers.
 RST 1 itself is not re-entrant.
 
+=head2 RST 1
+
+This function saves the user's registers, pages in the OS ROM, and calls
+the relevant function.  When that function returns, the OS ROM is paged
+back out and registers restored.  Any return values will be on the stack.
