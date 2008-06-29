@@ -56,7 +56,7 @@ $SIG{VTALRM} = sub {
     if($key) {
         # print "Got char $key\n";
     }
-    $cpu->nmi() if($clock);
+    $cpu->interrupt() if($clock);
 };
 
 ReadMode 'noecho';

@@ -11,32 +11,7 @@ $rst0
   
 $osfunc
   ; on entry, stack is param1, param2, funcno, retaddr
-  LD ($osfunc__hl_store + 1), HL  ; store HL so we can restore it later
-  LD ($osfunc__de_store + 1), DE  ; store DE
-  LD ($osfunc__bc_store + 1), BC  ;
-  PUSH AF
-  POP HL
-  LD ($osfunc__af_store + 1), AF  ;
-
-  POP HL
-  LD ($osfunc__ret_store + 1), HL ; store RET address
-  ; stack is now param1, param2, funcno
-  POP HL
-  ; stack is now param1, param2
-  JP (HL)                        ; jump to function number
-$osfunc__ret_from_function
-$osfunc__af_store
-  LD HL, 0x0000                  ; 0x0000 is replaced
-  PUSH HL
-  POP AF
-$osfunc__hl_store
-  LD HL, 0x0000                  ; 0x0000 is replaced
-$osfunc__de_store
-  LD DE, 0x0000                  ; 0x0000 is replaced
-$osfunc__bc_store
-  LD BC, 0x0000                  ; 0x0000 is replaced
-$osfunc__ret_store
-  JP 0x0000                      ; 0x0000 is replaced - osfunc's RET
+  ...
 
 $init__part2
   LD SP, HL             ; initialise stack

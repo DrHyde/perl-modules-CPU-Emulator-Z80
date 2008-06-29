@@ -59,8 +59,7 @@ C<shell.cmd> is executed.
 
 =head1 REGISTERS
 
-The alternate register set may be used by OS functions.  Any
-functions that do so are un-interruptable.
+The alternate register set may be used by OS functions.
 
 =head1 MEMORY MAP
 
@@ -81,4 +80,23 @@ RST 1 itself is not re-entrant.
 
 This function saves the user's registers, pages in the OS ROM, and calls
 the relevant function.  When that function returns, the OS ROM is paged
-back out and registers restored.  Any return values will be on the stack.
+back out and registers restored.  Any return values will be on the
+stack.
+
+=head1 PROCESSES
+
+User processes may be loaded and executed at any address.
+Consequently they should not use any absolute addresses in their code.
+
+Associated with each process is a control structure.  This is stored
+at 0xXXXX + 0xXX * PID and consists of:
+
+    offset | size | use
+    -------------------
+    0      | 2    | storage for AF register
+    2      | 2    | storage for BC register
+    4      | 2    | storage for DE register
+    6      | 2    | storage for HL register
+    8      | 2    | storage for PC register
+    10     | 2    | storage for SP register
+
