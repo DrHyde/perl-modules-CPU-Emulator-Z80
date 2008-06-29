@@ -73,8 +73,13 @@ The alternate register set may be used by OS functions.
 
 Parameters are passed via the stack, and are all sixteen bits long
 The last parameter passed should be the function number to call.
-To execute the function, C<RST 1>.  This preserves all registers.
+To execute the function, C<RST 1>.
 RST 1 itself is not re-entrant.
+
+=head1 NMIs
+
+The NMI increments a 32-bit clock counter in memory and may, if
+we're not inside RST 1, may perform a task switch.
 
 =head2 RST 1
 

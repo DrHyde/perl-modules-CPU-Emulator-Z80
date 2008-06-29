@@ -11,7 +11,29 @@ $rst0
   
 $osfunc
   ; on entry, stack is param1, param2, funcno, retaddr
-  ...
+  PUSH AF                    ; first, see if we're already in OSFUNC
+  LD A, ($osfunc__in_osfunc)
+  CP 1
+  JR NZ, $osfunc__chk_in_osfunc_NO
+  JP $osfunc__recurse        ; we are, so crash
+$osfunc__chk_in_osfunc_NO
+  LD A, 1                    ; we're not. record that we are
+  LD ($osfunc__in_osfunc), A
+  POP AF
+;   ... store registers ...
+;   ... do osfunc ...
+; $osfunc__return
+;   ... restore registers ...
+  PUSH AF
+  LD A, 0
+  LD ($osfunc__in_osfunc), A
+  POP AF
+  RET
+$osfunc__recurse
+; ... print message ...
+  JP $osfunc__recurse
+$osfunc__in_osfunc
+  DEFB 0x00
 
 $init__part2
   LD SP, HL             ; initialise stack
@@ -53,15 +75,41 @@ $init__free_memory_loop
 
   RST 0
 
-  DEFB 0
+$clock_low16
+  DEFW 0
+$clock_high16
+  DEFW 0
 
 $nmi                    ;            0x0066
-  LD ($nmi__hl_store + 1), HL
-  LD HL, $os_nmi
+  PUSH AF                    ; inc clock
   PUSH HL
-  RST 1
-$nmi__hl_store
-  LD HL, 0x0000         ; 0x0000 gets replaced
+  LD HL, ($clock_low16)      ; first the low 16 bits
+  INC HL
+  LD ($clock_low16), HL
+  LD A, 0
+  CP L
+  JR NZ, $nmi__inc_clock_after_inc_high16
+  CP H
+  JR NZ, $nmi__inc_clock_after_inc_high16
+  LD HL, ($clock_high16)     ; now the high sixteen bits
+  INC HL
+  LD ($clock_high16), HL
+$nmi__inc_clock_after_inc_high16
+  POP HL
+  LD A, ($osfunc__in_osfunc)  ; now see if we're already in OSFUNC
+  CP 1
+  JR NZ, $nmi__chk_in_osfunc_NO
+  POP AF
+  RETN
+$nmi__chk_in_osfunc_NO
+  POP AF
+;   ... process switch? ...
+;   LD ($nmi__hl_store + 1), HL
+;   LD HL, $os_nmi
+;   PUSH HL
+;   RST 1
+; $nmi__hl_store
+;   LD HL, 0x0000         ; 0x0000 gets replaced
   RETN
 
 $init__slurp_ports_loop
@@ -80,15 +128,11 @@ $init__slurp_ports_loop
 $shell_name
   DEFT "shell.cmd", 0x00
 
-; memory allocation bitmap
-
 ; on entry stack is param1, param2, ..., retaddr
 $os_nmi
 $os_malloc__mark
 $os_malloc                      ; allocates 64 bytes, putting
                                 ; their address on the stack
-  JP $osfunc__ret_from_function
-
 $os_freemem                     ; de-allocates 64 bytes, taking the
                                 ; address to de-allocate from the stack
 $os_readport
