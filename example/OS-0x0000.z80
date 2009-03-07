@@ -1,8 +1,6 @@
 ORG 0x0000
 INCLUDE "example/constants.z80"
-MACRO OSFUNC {
-  RST 1
-}
+MACRO OSFUNC { RST 1 }
 $rst0
   DI
   IM 1
@@ -19,13 +17,18 @@ $osfunc
 $osfunc__chk_in_osfunc_NO
   LD A, 1                    ; we're not. record that we are
   LD ($osfunc__in_osfunc), A
-  POP AF
-;   ... store registers ...
+  PUSH HL                    ; store rest of registers ...
+  PUSH DE
+  PUSH BC
+  PUSH IX
+  PUSH IY
 ;   ... do osfunc ...
-; $osfunc__return
-;   ... restore registers ...
-  PUSH AF
-  LD A, 0
+  PUSH IY                    ; restore rest of registers ...
+  PUSH IX
+  PUSH BC
+  PUSH DE
+  PUSH HL
+  LD A, 0                    ; mark that we're no longer in OSFUNC
   LD ($osfunc__in_osfunc), A
   POP AF
   RET
@@ -46,21 +49,6 @@ $rst7
   
 $init__part3
 
-; free all memory
-  LD B,  128
-  LD HL, 0xFF00
-$init__free_memory_loop
-  LD (HL), 0
-  INC HL
-  DJNZ $init__free_memory_loop
-
-; mark memory map and stack as used
-  LD A, 0x0F
-  LD (0xFF7F), A
-; mark OS as used
-  LD A, 0xF0
-  LD (0xFF00), A
-
 ; now slurp all ports
   LD B, 0x80            ; 2 bytes     num ports to slurp
   LD C, 0x00            ; 2 bytes     port to start at
@@ -80,7 +68,7 @@ $clock_low16
 $clock_high16
   DEFW 0
 
-$nmi                    ;            0x0066
+$nmi                         ;            0x0066
   PUSH AF                    ; inc clock
   PUSH HL
   LD HL, ($clock_low16)      ; first the low 16 bits
@@ -88,13 +76,13 @@ $nmi                    ;            0x0066
   LD ($clock_low16), HL
   LD A, 0
   CP L
-  JR NZ, $nmi__inc_clock_after_inc_high16
+  JR NZ, $nmi__inc_clock__after_inc_high16
   CP H
-  JR NZ, $nmi__inc_clock_after_inc_high16
+  JR NZ, $nmi__inc_clock__after_inc_high16
   LD HL, ($clock_high16)     ; now the high sixteen bits
   INC HL
   LD ($clock_high16), HL
-$nmi__inc_clock_after_inc_high16
+$nmi__inc_clock__after_inc_high16
   POP HL
   LD A, ($osfunc__in_osfunc)  ; now see if we're already in OSFUNC
   CP 1
@@ -104,24 +92,16 @@ $nmi__inc_clock_after_inc_high16
 $nmi__chk_in_osfunc_NO
   POP AF
 ;   ... process switch? ...
-;   LD ($nmi__hl_store + 1), HL
-;   LD HL, $os_nmi
-;   PUSH HL
-;   RST 1
-; $nmi__hl_store
-;   LD HL, 0x0000         ; 0x0000 gets replaced
   RETN
 
-$init__slurp_ports_loop
-  LD HL, $os_readport   ;    \
-  PUSH BC               ;    | set up stack for call
-  PUSH HL               ;    /
-  OSFUNC                ;      ; leaves addr of data on stack
-  LD HL, $os_freemem    ;      ; free that memory block
-  PUSH HL               ;
-  OSFUNC                ; 
+$init__slurp_ports_loop ; B is no of ports to slurp, C is no of current port
+  LD HL, $os_readport   ;  \
+  PUSH BC               ;  | set up stack for call
+  PUSH HL               ;  /
+  OSFUNC                ; leaves addr of data on stack
+  POP HL                ; throw it away
   INC C                 ; 
-  INC C                 ;      point at next port
+  INC C                 ; point at next port
   DJNZ $init__slurp_ports_loop
   RET
 
@@ -130,10 +110,5 @@ $shell_name
 
 ; on entry stack is param1, param2, ..., retaddr
 $os_nmi
-$os_malloc__mark
-$os_malloc                      ; allocates 64 bytes, putting
-                                ; their address on the stack
-$os_freemem                     ; de-allocates 64 bytes, taking the
-                                ; address to de-allocate from the stack
 $os_readport
 $os_exec
