@@ -71,12 +71,16 @@ sub _reset {
 }
 
 sub DESTROY{}
+# only calculate this once
+my $autoload_prefix_length = length(__PACKAGE__) + 2;
 sub AUTOLOAD {
-    (my $sub = $AUTOLOAD) =~ s/.*:://;
-    my($fn, $flag) = ($sub =~ /^(.*)(.)$/);
+    my $sub = substr($AUTOLOAD, $autoload_prefix_length);
+    my $flag = substr($sub, -1);
+    substr($sub, -1, 1) = '';
+
     my $self = shift();
     no strict 'refs';
-    return *{"_$fn"}->($self, $masks{$flag}, @_);
+    return *{"_$sub"}->($self, $masks{$flag}, @_);
 }
 
 =head1 BUGS/WARNINGS/LIMITATIONS
