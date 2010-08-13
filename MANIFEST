@@ -2673,7 +2673,7 @@ lib/CPU/Emulator/Z80/Internals.pod
 t/13-IND-INI-INDR-INIR.t
 t/14-OUTD-OUTI-OTDR-OTIR.t
 t/15-number-of-ports.t
-t/90-realcode.t
+t/90-realcode-multiply.t
 t/multiply.bin
 t/multiply.z80
 interrupt-HOWTO
@@ -2684,3 +2684,6 @@ example/OS-0x0000.z80
 example/constants.z80
 example/LDR-0x0000.z80
 example/machine.pl
+t/90-realcode-parity.t
+t/parity.bin
+t/parity.z80
