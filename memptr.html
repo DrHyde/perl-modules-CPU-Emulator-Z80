@@ -1,0 +1,690 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en" dir="ltr">
+<head>
+	<title>Emulation of MEMPTR register on Z80 finally understood - Emuversal Bulletin Board</title>
+	<meta name="generator" content="UBB.threads 7.5.5" />
+	<meta name="robots" content="index, follow" />
+	
+	<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+	<meta http-equiv="X-UA-Compatible" content="IE=EmulateIE7" />
+	<link rel="stylesheet" href="/forums/styles/common.css?v=7.5.5" type="text/css" />
+	<link rel="stylesheet" href="/forums/styles/classic_1210409036.css?v=7.5.5" type="text/css" />
+	<link rel="shortcut icon" href="/forums/images/general/default/favicon.ico" />
+	
+	<script type="text/javascript">
+		// <![CDATA[
+		var baseurl		= "/forums";
+		var fullurl		= "http://www.bannister.org/forums";
+		var script		= "http://www.bannister.org/forums/ubbthreads.php";
+		var imagedir		= "general/default";
+		var myUid		= '';
+		var submitClicked 	= "Your post is already being submitted.  The submit button is now disabled.";
+		var open_block		= new Image();
+		open_block.src		= baseurl + "/images/general/default/toggle_open.gif";
+		var closed_block	= new Image();
+		closed_block.src	= baseurl + "/images/general/default/toggle_closed.gif";
+		var loadingpreview	= "Loading Preview...";
+		var today		= '9';
+		var s_priv		= '';
+		// ]]>
+	</script>
+	<script type="text/javascript" src="/forums/ubb_js/ubb_jslib.js?v=7.5.5"></script>
+	<script type="text/javascript" src="/forums/ubb_js/image.js?v=7.5.5"></script>
+	<script type="text/javascript" src="/forums/ubb_js/quickquote.js?v=7.5.5"></script>
+
+<style type="text/css">
+.post_inner img {
+	max-width: 400px;
+}
+</style>
+
+</head>
+<body onclick="if(event.which!=3){clearMenus(event)}" onunload='clearSubmit()'>
+<a id="top"></a>
+
+
+<div id="content">
+
+
+<div id="active_popup" style="display: none;">
+	<table class="popup_menu">
+		<tr>
+			<td class="popup_menu_content"><a href="/forums/ubbthreads.php?ubb=activetopics&amp;range=7&amp;type=t">Active Topics</a></td>
+		</tr>
+		<tr>
+			<td class="popup_menu_content"><a href="/forums/ubbthreads.php?ubb=activetopics&amp;range=7&amp;type=p">Active Posts</a></td>
+		</tr>
+		<tr>
+			<td class="popup_menu_content"><a href="/forums/ubbthreads.php?ubb=activetopics&amp;range=7&amp;type=u">Unanswered Posts</a></td>
+		</tr>
+	</table>
+</div>
+<script type="text/javascript">
+	registerPopup("active_popup");
+</script>
+
+
+
+<table align="center" width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td>
+<table width="100%" class="t_outer" cellpadding="0" cellspacing="0">
+<tr>
+<td>
+<table width="100%" class="t_inner" cellpadding="0" cellspacing="1">
+<tr>
+<td class="breadcrumbs">
+<span style="float:right">You are not logged in. [<a href="/forums/ubbthreads.php?ubb=login">Log In</a>]
+</span>
+<span style="float:left">
+<a href="http://www.bannister.org/forums/ubbthreads.php?ubb=cfrm">Emuversal Bulletin Board</a>
+ &raquo;  <a href="/forums/ubbthreads.php?ubb=cfrm">Forums</a> &raquo; <a href="/forums/ubbthreads.php?ubb=cfrm&amp;c=2">Official Emulator Message Boards</a> &raquo; <a href="/forums/ubbthreads.php?ubb=postlist&amp;Board=1&amp;page=1">MESS</a> &raquo; Emulation of MEMPTR register on Z80 finally understood
+</span>
+</td>
+</tr>
+<tr>
+<td class="navigation">
+<a href="/forums/ubbthreads.php?ubb=newuser">Register User</a> &nbsp;&nbsp;
+<a href="/forums/ubbthreads.php?ubb=cfrm">Forum List</a> &nbsp;&nbsp;
+ &nbsp;&nbsp;&nbsp;
+<a href="/forums/ubbthreads.php?ubb=calendar">Calendar</a> &nbsp;&nbsp;&nbsp;
+<span style="cursor: pointer;" id="active_control" onclick="showHideMenu('active_control','active_popup')">
+<a href="javascript:void(0);">Active Topics</a>
+<img style="vertical-align: middle" src="/forums/images/general/default/toggle_open.gif" alt="" />
+</span> &nbsp;&nbsp;&nbsp;
+<a href="/forums/ubbthreads.php?ubb=faq">FAQ</a>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+
+
+</td>
+</tr>
+<tr>
+<td>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top: -5px">
+
+<tr><td width="85%" class="body_col" valign="top">
+
+
+
+<table cellpadding="0" cellspacing="0">
+<tr>
+
+
+<td style="padding-right: 3px;">
+<table class="t_standard">
+<tr>
+<td class="tdheader" style="cursor: pointer" id="options_control" onclick="showHideMenu('options_control','options_popup')">
+Topic Options <img style="vertical-align: middle" src="/forums/images/general/default/toggle_open.gif" alt="" />
+</td>
+</tr>
+</table>
+
+</td>
+
+
+
+</tr>
+</table>
+
+
+<div style="clear: both"></div>
+
+<a name="Post2649"></a>
+
+
+<table width="100%" class="t_outer" cellpadding="0" cellspacing="0">
+<tr>
+<td>
+<table width="100%" class="t_inner" cellpadding="0" cellspacing="1">
+<tr>
+<td>
+<table width="100%" cellspacing="0" cellpadding="0">
+<tr>
+<td colspan="2" class="subjecttable">
+<span class="small" style="float:right">
+<span id="number2649">#2649</span> - <span class="date">03/04/06</span> <span class="time">02:38 AM</span>
+</span>
+
+<a href="/forums/ubbthreads.php?ubb=showflat&amp;Number=2649#Post2649"><img src="/forums/images/icons/default/book.gif" alt="" /></a>
+<b>Emulation of MEMPTR register on Z80 finally understood</b>
+
+<span class="small">
+
+</span>
+</td>
+</tr>
+<tr>
+<td width="17%" valign="top" class="author-content">
+<b><span id="menu_control_2649"><a href="javascript:void(0);" onclick="showHideMenu('menu_control_2649','profile_popup_2649');">JoJo</a></span></b>
+<img src="/forums/images/moods/default/offline.gif" alt="Offline" title="Offline" />
+<br />
+<span class="small">
+Senior Member
+<br />
+<img src="http://www.bannister.org/ubb/Avatars/119.jpg" alt="" width="80" height="80" />
+<br />
+Registered:  11/05/99
+<br />
+Posts: 466
+
+<br />
+Loc:  Napoli, Italy
+
+
+</span>
+</td>
+<td width="83%" class="post-content" valign="top">
+<div class="post_inner">
+<div id="body0">I've found this in comp.sys.sinclair, might be interesting to Z80 devs:<br /><br />================================================<br /><br />MEMPTR, esoteric register of the ZiLOG Z80 CPU.<br /><br />by Boo-boo (first and draft English translation by Vladimir Kladov)<br /><br /><br />  As it is known, after the instruction BIT n,(HL) execution, bits 3 and 5 of the flag register become containing values that is not documented in the official documentation at all. Actually these bits are copied from the bits 11 and 13 of the internal register pair of Z80 CPU, which is used for 16-bit operations, and in most cases to handle addresses. This is usual practice for processors having 8-bits data bus working with 16-bits data.<br /><br />  It is not known why and how these bits of the internal buffer register are copied to the flags register though. At least Sean Young in the &quot;Undocumented Z80 Documented&quot; refers to that phenomenon (<a href="http://www.myquest.nl/z80undocumented/"  rel="nofollow" target="_blank">http://www.myquest.nl/z80undocumented/</a>) and a bit more info can be found in the Z80 description of another &quot;nocash&quot; project (<a href="http://www.work.de/nocash/zxdocs.htm"  rel="nofollow" target="_blank">http://www.work.de/nocash/zxdocs.htm</a>) where such register pair is called as MEMPTR. Unfortunately until now attemts to crack the algorithm setting the value of the MEMPTR by different processor instructions on base of knowning only two bits of those 16-bits register were not successful.<br /><br />  But miraculously in result of many experiments (based on the hyposesis that index addressing instructions initialize the MEMPTR always the same way) and also after the deep meditations under the results of these samples we have found that CPI instruction increments the MEMPTR by 1 whereas CPD instruction decrements it. Hence, decrementing the MEMPTR in the loop and monitoring borrow from the high bits having two known bits in the flag register, it is possible to determine unambigously 14 low bits of the MEMPTR and having these in our hands to say for sure on which rule MEMPTR is set after each instruction.<br /><br />  A list of instructions changing the MEMPTR is follow, together with the formula for new MEMPTR value. Here &quot;rp&quot; means register pair (16 bits register BC, DE, HL or SP - ?), and &quot;INDEX&quot; means register pair IX or IY. Instructions not listed below do not affect MEMPTR as it is found. All the CPU chips tested give the same results except KP1858BM1 and T34BM1 slices noted as &quot;BM1&quot; in the text.<br /><br /><div class="ubbcode-block"><div class="ubbcode-header">Code:</div><div class="ubbcode-body ubbcode-pre" ><pre>====================================================================================
+
+
+
+LD A,(addr)
+
+	MEMPTR = addr + 1
+
+
+
+LD (addr),A
+
+	MEMPTR_low = (addr + 1) &amp; #FF,  MEMPTR_hi = A
+
+	Note for *BM1: MEMPTR_low = (addr + 1) &amp; #FF,  MEMPTR_hi = 0
+
+
+
+LD A,(rp)  where rp -- BC or DE
+
+	MEMPTR = rp + 1
+
+
+
+LD (rp),A  where rp -- BC or DE
+
+	MEMPTR_low = (rp + 1) &amp; #FF,  MEMPTR_hi = A
+
+	Note for *BM1: MEMPTR_low = (rp + 1) &amp; #FF,  MEMPTR_hi = 0
+
+
+
+LD (addr), rp
+
+LD rp,(addr)
+
+	MEMPTR = addr + 1
+
+
+
+EX (SP),rp
+
+	MEMPTR = rp value after the operation
+
+
+
+ADD/ADC/SBC rp1,rp2
+
+	MEMPTR = rp1_before_operation + 1
+
+
+
+RLD/RRD
+
+	MEMPTR = HL + 1
+
+
+
+JR/DJNZ/RET/RETI/RST (jumping to addr)
+
+	MEMPTR = addr
+
+
+
+JP(except JP rp)/CALL addr (even in case of conditional call/jp, independantly on condition satisfied or not)
+
+	MEMPTR = addr
+
+
+
+IN A,(port)
+
+	MEMPTR = (A_before_operation &lt;&lt; 8) + port + 1
+
+
+
+IN A,(C)
+
+	MEMPTR = BC + 1
+
+
+
+OUT (port),A
+
+	MEMPTR_low = (port + 1) &amp; #FF,  MEMPTR_hi = A
+
+	Note for *BM1: MEMPTR_low = (port + 1) &amp; #FF,  MEMPTR_hi = 0
+
+
+
+OUT (C),A
+
+	MEMPTR = BC + 1
+
+
+
+LDIR/LDDR
+
+	when BC == 1: MEMPTR is not changed
+
+	when BC &lt;&gt; 1: MEMPTR = PC + 1, where PC = instruction address
+
+
+
+CPI
+
+	MEMPTR = MEMPTR + 1
+
+
+
+CPD
+
+	MEMPTR = MEMPTR - 1
+
+
+
+CPIR
+
+	when BC=1 or A=(HL): exactly as CPI
+
+	In other cases MEMPTR = PC + 1 on each step, where PC = instruction address.
+
+	Note* since at the last execution BC=1 or A=(HL), resulting MEMPTR = PC + 1 + 1 
+
+	  (if there were not interrupts during the execution) 
+
+
+
+CPDR
+
+	when BC=1 or A=(HL): exactly as CPD
+
+	In other cases MEMPTR = PC + 1 on each step, where PC = instruction address.
+
+	Note* since at the last execution BC=1 or A=(HL), resulting MEMPTR = PC + 1 - 1 
+
+	  (if there were not interrupts during the execution)
+
+
+
+INI
+
+	MEMPTR = BC_before_decrementing_B + 1
+
+
+
+IND
+
+	MEMPTR = BC_before_decrementing_B - 1
+
+
+
+INIR
+
+	exactly as INI on each execution.
+
+	I.e. resulting MEMPTR = ((1 &lt;&lt; 8) + C) + 1 
+
+
+
+INDR
+
+	exactly as IND on each execution.
+
+	I.e. resulting MEMPTR = ((1 &lt;&lt; 8) + C) - 1 
+
+
+
+OUTI
+
+	MEMPTR = BC_after_decrementing_B + 1
+
+
+
+OUTD
+
+	MEMPTR = BC_after_decrementing_B - 1
+
+
+
+OTIR
+
+	exactly as OUTI on each execution. I.e. resulting MEMPTR = C + 1 
+
+
+
+OTDR
+
+	exactly as OUTD on each execution. I.e. resulting MEMPTR = C - 1
+
+
+
+Any instruction with (INDEX+d):
+
+	MEMPTR = INDEX+d
+
+
+
+Interrupt call to addr:
+
+	As usual CALL. I.e. MEMPTR = addr
+
+
+
+====================================================================================</pre></div></div>What is the profit of which secret knowledge? First of all, it is possible now to program Z80 emulators supporting _all_ the undocumented pecularities of the CPU. In the second place the fact that on some Z80 clones MEMPTR register behaves a bit another adds a method of model checking. Seems very enough!<br /><br />(c)2006, zx.pk.ru<br /><br />Theoretical part: boo_boo, Vladimir Kladov<br /><br />Testing real Z80 chips: Wlodek, CHRV, icebear, molodcov_alex, goodboy<br /><br /><br />================================================</div>
+
+
+
+<span class="edited-wording"></span>
+<div class="signature">
+_________________________<br />
+JoJo
+</div>
+<br />
+</div>
+</td></tr>
+<tr>
+<td class="post_top_link" valign="bottom">
+<a href="#top">Top</a>
+</td>
+<td class="post-options" valign="bottom" align="right">
+
+
+
+
+
+
+</td>
+</tr>
+
+
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+
+
+
+
+
+
+
+<div id="prev-next-links">
+<table cellpadding="0" cellspacing="0">
+<tr>
+<td style="padding-right: 3px;">
+<table class="t_standard">
+<tr>
+<td class="tdheader">
+<a href="/forums/ubbthreads.php?ubb=grabnext&amp;Board=1&amp;mode=showflat&amp;sticky=0&amp;dir=new&amp;posted=1144028280" style="text-decoration: none;" rel="nofollow"><img style="vertical-align: middle" src="/forums/images/general/default/previous.gif" alt="" />
+Previous Topic</a>
+</td>
+</tr>
+</table>
+</td>
+<td style="padding-right: 3px;">
+<table class="t_standard">
+<tr>
+<td class="tdheader">
+<a href="/forums/ubbthreads.php?ubb=postlist&amp;Board=1&amp;page=" style="text-decoration: none;">
+<img style="vertical-align: middle" src="/forums/images/general/default/all.gif" alt="View All Topics" />
+Index</a>
+</td>
+</tr>
+</table>
+</td>
+
+<td>
+<table class="t_standard">
+<tr>
+<td class="tdheader">
+<a href="/forums/ubbthreads.php?ubb=grabnext&amp;Board=1&amp;mode=showflat&amp;sticky=0&amp;dir=old&amp;posted=1144028280" style="text-decoration: none;" rel="nofollow">
+Next Topic <img style="vertical-align: middle" src="/forums/images/general/default/next.gif" alt="" />
+</a>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</div>
+
+
+<br />
+
+
+<div id="preview_area" style="display: none;" class="post_inner">
+<table width="100%" class="t_outer" cellpadding="0" cellspacing="0">
+<tr>
+<td>
+<table width="100%" class="t_inner" cellpadding="0" cellspacing="1">
+<tr>
+<td class="tdheader">
+Preview
+</td>
+</tr>
+<tr>
+<td class="alt-2">
+<div id="preview_text">
+</div>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+
+</div>
+
+
+
+<br />
+<div style="float: right" class="small">
+	
+<form method="post" action="/forums/ubbthreads.php">
+<input type="hidden" name="ubb" value="jumper" />
+<table cellpadding="0" cellspacing="0">
+<tr>
+<td>
+<label for="board">Hop to:</label>
+
+<select name="board" id="board" class="form-select">
+<option value="c:2">Official Emulator Message Boards ------</option><option value="5" >&nbsp;&nbsp;&nbsp;Audio Overload</option><option value="10" >&nbsp;&nbsp;&nbsp;MAME OS X</option><option value="1" selected="selected">&nbsp;&nbsp;&nbsp;MESS</option><option value="2" >&nbsp;&nbsp;&nbsp;Modeler and M1</option><option value="7" >&nbsp;&nbsp;&nbsp;Nestopia</option><option value="8" >&nbsp;&nbsp;&nbsp;SDLMAME</option><option value="3" >&nbsp;&nbsp;&nbsp;Zinc</option><option value="c:3">Other Boards ------</option><option value="4" >&nbsp;&nbsp;&nbsp;MacMAME</option>
+</select>
+<input type="submit" name="Jump" value="Go" class="form-button" />
+</td>
+</tr>
+</table>
+</form>
+
+</div>
+	<div class="small">
+		Moderator: &nbsp;<a href="/forums/ubbthreads.php?ubb=showprofile&amp;User=6" rel="nofollow">Bletch</a>, <a href="/forums/ubbthreads.php?ubb=showprofile&amp;User=68" rel="nofollow">R. Belmont</a>, <a href="/forums/ubbthreads.php?ubb=showprofile&amp;User=11" rel="nofollow">Richard Bannister</a>&nbsp;
+	</div>
+
+<div id="options_popup" style="display: none;"><table class="popup_menu">
+
+<tr><td class="popup_menu_content"><a target="_blank" href="/forums/ubbthreads.php?ubb=printthread&amp;Board=1&amp;main=310&amp;type=thread" rel="nofollow">Print Topic</a></td></tr>
+<tr><td class="popup_menu_content">
+<a href="/forums/ubbthreads.php?ubb=showthreaded&amp;Number=2649&amp;an=" rel="nofollow">Switch to Threaded Mode</a>
+</td></tr>
+</table></div>
+
+<script type="text/javascript">registerPopup("options_popup");</script>
+
+
+
+<div id="profile_popup_2649" style="display: none;"><table class="popup_menu"><tr><td class="popup_menu_content"><a href="/forums/ubbthreads.php?ubb=showprofile&amp;User=4" rel="nofollow">View profile</a></td></tr><tr><td class="popup_menu_content"><a href="/forums/ubbthreads.php?ubb=sendprivate&amp;User=4" rel="nofollow">Send a PM</a></td></tr><tr><td class="popup_menu_content"><a href="/forums/ubbthreads.php?ubb=addfavuser&amp;User=4&amp;n=2649&amp;p=1&amp;f=1" rel="nofollow">Add to your Watched Users</a></td></tr><tr><td class="popup_menu_content"><a href="/forums/ubbthreads.php?ubb=userposts&amp;id=4" rel="nofollow">View posts</a></td></tr></table></div><script type="text/javascript">registerPopup("profile_popup_2649"); </script>
+
+</td>
+<td width="15%" valign="top" class="right_col">
+
+
+<table width="100%" class="t_outer" cellpadding="0" cellspacing="0">
+<tr>
+<td>
+<table width="100%" class="t_inner" cellpadding="0" cellspacing="1"><tr>
+	<td class="righttdheader"><a href="/forums/ubbthreads.php?ubb=online">Who's Online</a></td>
+</tr>
+<tr>
+<td class="rightalt-1">
+5 registered (<a href="/forums/ubbthreads.php?ubb=showprofile&amp;User=5154" title="User was last active 45 seconds ago.">Kale</a>, <a href="/forums/ubbthreads.php?ubb=showprofile&amp;User=331" title="User was last active 1 minute 32 seconds ago.">Duke</a>, <a href="/forums/ubbthreads.php?ubb=showprofile&amp;User=68" title="User was last active 4 minutes 6 seconds ago."><span class='modname'>R. Belmont</span></a>, <a href="/forums/ubbthreads.php?ubb=showprofile&amp;User=4036" title="User was last active 7 minutes 20 seconds ago.">Micko</a>, <a href="/forums/ubbthreads.php?ubb=showprofile&amp;User=273" title="User was last active 0 seconds ago.">Vas Crabb</a>), 
+
+15 
+Guests and
+4 
+Spiders online.</td>
+</tr>
+<tr>
+<td class="rightalt-2">
+<div class="small">
+	<strong>Key:</strong>
+	<span class="adminname">Admin</span>,
+	<span class="globalmodname">Global Mod</span>,
+	<span class="modname">Mod</span>
+</div>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+
+
+<script type="text/javascript" src="/forums/ubb_js/shoutbox.js"></script>
+<script language="javascript" type="text/javascript">
+var confirmText = "Are you sure you want to delete Shout ID:";
+var notLogged = "You do not have permission to use shoutbox.";
+</script>
+
+<table width="100%" class="t_outer" cellpadding="0" cellspacing="0">
+<tr>
+<td>
+<table width="100%" class="t_inner" cellpadding="0" cellspacing="1"><tr>
+<td class="righttdheader">
+Shout Box</td>
+</tr>
+<tr>
+<td class="rightalt-1">
+<div id="shout_box" style="height:300px; width: 100%; overflow:auto;">
+<div id="shout_content" style="height: 336px;">
+</div>
+</div>
+<form name="shoutbox"  method="post" action="" onsubmit="shoutit();return false;">
+<div align="center">
+<span id="shout_field">
+<input type="text" name="shoutbody" size="15" class="form-input" maxlength="255" value="" />
+</span>
+<span id="sending_field" style="display:none">
+Sending...
+</span>
+<br />
+<input type="button" name="shoutbutton" value="Shout" class="form-button" onclick="shoutit()" />
+<input type="reset" value="Reset" class="form-button" />
+</div>
+</form>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+
+<table width="100%" class="t_outer" cellpadding="0" cellspacing="0">
+<tr>
+<td>
+<table width="100%" class="t_inner" cellpadding="0" cellspacing="1"><tr>
+<td class="righttdheader">
+Forum Stats</td>
+</tr>
+<tr>
+<td class="rightalt-1" align="left">
+<b>4015</b> Members<br />
+<b>9</b> Forums<br />
+<b>6215</b> Topics<br />
+<b>63605</b> Posts<br />
+
+<br /><div class="small">
+Max Online: 162 @ <span class="date">01/05/07</span> <span class="time">03:28 AM</span>
+</div>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+
+
+</td></tr>
+</table>
+
+</td>
+</tr>
+<tr>
+<td>
+
+<table width="100%" class="t_outer" cellpadding="0" cellspacing="0">
+<tr>
+<td>
+<table width="100%" class="t_inner" cellpadding="0" cellspacing="1">
+<tr>
+<td class="footer" align="left">
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td width="60%">
+<a href="/forums/ubbthreads.php?ubb=boardrules&amp;v=1">Board Rules</a> &middot; 
+<a href="/forums/ubbthreads.php?ubb=markallread">Mark all read</a>
+<form method="post" action="" name="prefs">
+<input type="hidden" name="curl" value="http%3A%2F%2Fwww.bannister.org%2Fforums%2Fubbthreads.php%3Fubb%3Dshowflat%26Number%3D2649" />
+<select name='style' onchange="changePrefs('style',this.form.style.value);" class='form-input'><optgroup label='Style Chooser'><option value='0'>Default Style</option><option selected='selected' value='1'>classic</option><option value='2'>ubbthreads</option></optgroup></select> 
+</form>
+</td>
+<td align="right" width="40%">
+<a href="http://www.bannister.org/email/">Contact Us</a>
+&middot;
+<a href="http://www.bannister.org/forums/ubbthreads.php?ubb=cfrm">Emuversal Bulletin Board</a>
+&middot;
+<a href="#top">Top</a>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+</table>
+
+<br />
+
+</td>
+</tr>
+</table>
+
+
+</div>
+<div id="footer" align="center" class="small">
+Generated in 0.033 seconds in which 0.010 seconds were spent on a total of 13 queries. Zlib compression enabled.<br /><a href="http://www.ubbcentral.com/" target="_blank">Powered by UBB.threads&trade; 7.5.5</a>
+</div>
+
+
+<script type="text/javascript">getShouts(0);</script>
+</body>
+</html>
