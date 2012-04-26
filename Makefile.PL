@@ -1,6 +1,12 @@
 use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME         => 'CPU::Emulator::Z80',
+    META_MERGE => {
+        license => 'other',
+        resource => {
+	    repository => 'https://github.com/DrHyde/perl-modules-CPU-Emulator-Z80'
+        }
+    },
     VERSION_FROM => 'lib/CPU/Emulator/Z80.pm',
     PREREQ_PM => {
         'CPU::Emulator::Memory::Banked' => 1.1,
