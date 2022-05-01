@@ -5,7 +5,7 @@ use warnings;
 
 use vars qw($VERSION %INSTR_LENGTHS %INSTR_DISPATCH);
 
-$VERSION = '1.0';
+$VERSION = '1.01';
 
 $SIG{__WARN__} = sub {
     warn(__PACKAGE__.": $_[0]\n");

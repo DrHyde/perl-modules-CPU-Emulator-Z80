@@ -9,7 +9,7 @@ use base qw(CPU::Emulator::Z80::Register16);
 
 use CPU::Emulator::Z80::ALU;
 
-$VERSION = '1.0';
+$VERSION = '1.01';
 
 =head1 NAME
 

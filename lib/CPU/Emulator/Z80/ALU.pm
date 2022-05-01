@@ -4,7 +4,9 @@ use strict;
 use warnings;
 
 use base qw(Exporter);
-use vars qw(@EXPORT);
+use vars qw($VERSION @EXPORT);
+
+$VERSION = '1.01';
 
 {   # find and export ALU_*
     no strict 'refs';

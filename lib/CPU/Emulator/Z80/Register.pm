@@ -2,7 +2,7 @@ package CPU::Emulator::Z80::Register;
 
 use vars qw($VERSION);
 
-$VERSION = '1.0';
+$VERSION = '1.01';
 
 use CPU::Emulator::Z80::ALU;
 

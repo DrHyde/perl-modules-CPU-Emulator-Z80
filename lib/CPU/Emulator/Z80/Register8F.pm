@@ -7,7 +7,7 @@ use vars qw($VERSION $AUTOLOAD);
 
 use base qw(CPU::Emulator::Z80::Register8);
 
-$VERSION = '1.0';
+$VERSION = '1.01';
 
 =head1 NAME
 
