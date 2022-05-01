@@ -2688,3 +2688,4 @@ t/90-realcode-parity.t
 t/parity.bin
 t/parity.z80
 MANIFEST.SKIP
+t/16-set.t
