@@ -1,5 +1,3 @@
-# $Id: Register16.pm,v 1.7 2008/06/13 20:46:41 drhyde Exp $
-
 package CPU::Emulator::Z80::Register16;
 
 use strict;

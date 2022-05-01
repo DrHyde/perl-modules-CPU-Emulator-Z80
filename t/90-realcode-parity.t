@@ -1,5 +1,5 @@
 use strict;
-$^W = 1;
+use warnings;
 
 use Test::More tests => 256;
 use CPU::Emulator::Z80;

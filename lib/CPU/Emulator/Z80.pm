@@ -1,5 +1,3 @@
-# $Id: Z80.pm,v 1.57 2008/06/13 20:46:41 drhyde Exp $
-
 package CPU::Emulator::Z80;
 
 use strict;
