@@ -899,7 +899,7 @@ sub _RES_SET {
         _LD_indHL_r8($self, 'W', $d) if($r eq '(HL)');
         _LD_r8_r8($self, $realr, 'W');
     } else {
-        _LD_r8_indHL($self, 'W', $d);
+        _LD_r8_indHL($self, 'W', $d) if($r eq '(HL)');
         $self->register($r)->set(            # RES by default
             $self->register($r)->get() & (255 - 2**$bit)
         );
