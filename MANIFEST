@@ -2679,11 +2679,6 @@ t/multiply.z80
 interrupt-HOWTO
 ARTISTIC.txt
 GPL2.txt
-example/OS-overview.pod
-example/OS-0x0000.z80
-example/constants.z80
-example/LDR-0x0000.z80
-example/machine.pl
 t/90-realcode-parity.t
 t/parity.bin
 t/parity.z80
