@@ -43,4 +43,4 @@ jobs:
             perl -Mparent -e0 || cpanm parent
             cpanm --installdeps .
             perl Makefile.PL
-            make test
+            make test TEST_VERBOSE=1
