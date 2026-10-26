@@ -1,8 +1,10 @@
 use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME         => 'CPU::Emulator::Z80',
-    META_MERGE => {
+    META_ADD => {
         license => 'open_source',
+},
+META_MERGE => {
         resources => {
 	    repository => 'https://github.com/DrHyde/perl-modules-CPU-Emulator-Z80',
 	    bugtracker => 'https://github.com/DrHyde/perl-modules-CPU-Emulator-Z80/issues'
